@@ -4,7 +4,7 @@
   "description": "Full-stack organic farm marketplace with customer and farmer dashboards",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma db push && next build",
     "start": "next start",
     "lint": "next lint",
     "prisma:generate": "prisma generate",

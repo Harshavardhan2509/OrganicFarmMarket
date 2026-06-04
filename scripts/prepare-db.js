@@ -9,9 +9,8 @@ if (process.env.VERCEL === '1') {
   schema = schema.replace(
     /datasource db \{[\s\S]*?\}/,
     `datasource db {
-  provider  = "postgresql"
-  url       = env("POSTGRES_PRISMA_URL") // uses connection pooling
-  directUrl = env("POSTGRES_URL_NON_POOLING") // uses a direct connection
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }`
   );
   fs.writeFileSync(schemaPath, schema, 'utf8');
