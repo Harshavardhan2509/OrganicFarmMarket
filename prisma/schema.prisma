@@ -1,0 +1,191 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  password      String?
+  name          String
+  role          String     @default("customer") // customer or farmer
+  phone         String?
+  address       String?
+  profileImage  String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  // Relations
+  products      Product[]
+  orders        Order[]
+  cartItems     CartItem[]
+  reviews       Review[]
+  sales         Sale[]
+  billingLogs   BillingLog[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Product {
+  id            String     @id @default(cuid())
+  name          String
+  description   String
+  price         Float
+  quantity      Int        @default(0)
+  category      String     // vegetables, fruits, grains, etc.
+  image         String?
+  farmerEmail   String?
+  farmerId      String
+  farmer        User       @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  // Relations
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
+  reviews       Review[]
+  stockHistory  StockHistory[]
+
+  @@index([farmerId])
+  @@index([category])
+  @@index([price])
+}
+
+model Cart {
+  id            String     @id @default(cuid())
+  userId        String     @unique
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  // Relations
+  items         CartItem[]
+}
+
+model CartItem {
+  id            String     @id @default(cuid())
+  cartId        String
+  cart          Cart       @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity      Int        @default(1)
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([cartId, productId])
+  @@index([userId])
+}
+
+model Order {
+  id            String     @id @default(cuid())
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  totalAmount   Float
+  status        String     @default("pending") // pending, processing, completed, cancelled
+  paymentStatus String     @default("pending") // pending, completed, failed
+  shippingAddress String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  // Relations
+  items         OrderItem[]
+  billingLogs   BillingLog[]
+  sales         Sale[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id            String     @id @default(cuid())
+  orderId       String
+  order         Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product    @relation(fields: [productId], references: [id])
+  quantity      Int
+  price         Float      // Price at time of order
+  createdAt     DateTime   @default(now())
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model BillingLog {
+  id            String     @id @default(cuid())
+  orderId       String
+  order         Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount        Float
+  status        String     @default("initiated") // initiated, processing, completed, failed
+  paymentMethod String?
+  transactionId String?
+  errorMessage  String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
+}
+
+model Review {
+  id            String     @id @default(cuid())
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  rating        Int        // 1-5
+  comment       String
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([userId, productId])
+  @@index([productId])
+  @@index([rating])
+}
+
+model Sale {
+  id            String     @id @default(cuid())
+  farmerId      String
+  farmer        User       @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  orderId       String
+  order         Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount        Float
+  date          DateTime   @default(now())
+
+  @@index([farmerId])
+  @@index([date])
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+}
+
+model StockHistory {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  oldQuantity Int
+  newQuantity Int
+  change      Int
+  action      String   // "add", "remove", "set"
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  @@index([productId])
+  @@index([createdAt])
+}
+
