@@ -10,7 +10,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "node scripts/prepare-db.js && prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^5.0.0",
