@@ -35,29 +35,23 @@ export default function EditProductPage({
     const file = e.target.files?.[0]
     if (!file) return
 
+    // Limit file size to 2MB to keep database size reasonable
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image size exceeds 2MB limit. Please choose a smaller image.')
+      return
+    }
+
     setUploadingImage(true)
-    const formData = new FormData()
-    formData.append('file', file)
-
-    try {
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      })
-
-      if (res.ok) {
-        const data = await res.json()
-        setImage(data.url)
-      } else {
-        const data = await res.json()
-        alert(data.error || 'Failed to upload image')
-      }
-    } catch (err) {
-      console.error('Upload error:', err)
-      alert('An error occurred during file upload.')
-    } finally {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setImage(reader.result as string)
       setUploadingImage(false)
     }
+    reader.onerror = () => {
+      alert('Failed to read file.')
+      setUploadingImage(false)
+    }
+    reader.readAsDataURL(file)
   }
 
   // Custom Category and Stock states
