@@ -18,6 +18,7 @@ interface Product {
   category: string
   farmerId: string
   unitSizes?: string | null
+  image?: string | null
 }
 
 export default function InventoryPage() {
@@ -31,7 +32,15 @@ export default function InventoryPage() {
   const [categories, setCategories] = useState<any[]>([])
   const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [newCategoryCgst, setNewCategoryCgst] = useState('0')
+  const [newCategorySgst, setNewCategorySgst] = useState('0')
   const [categoryError, setCategoryError] = useState<string | null>(null)
+
+  // Edit category states
+  const [editingCategory, setEditingCategory] = useState<any | null>(null)
+  const [editCategoryName, setEditCategoryName] = useState('')
+  const [editCategoryCgst, setEditCategoryCgst] = useState('0')
+  const [editCategorySgst, setEditCategorySgst] = useState('0')
 
   const fetchInventory = async () => {
     if (!session?.user) return
@@ -99,22 +108,76 @@ export default function InventoryPage() {
     setCategoryError(null)
     if (!newCategoryName.trim()) return
 
+    const cgstVal = parseFloat(newCategoryCgst)
+    const sgstVal = parseFloat(newCategorySgst)
+    if (isNaN(cgstVal) || cgstVal < 0 || isNaN(sgstVal) || sgstVal < 0) {
+      setCategoryError('CGST and SGST must be valid non-negative numbers')
+      return
+    }
+
     try {
       const res = await fetch('/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newCategoryName.trim() })
+        body: JSON.stringify({
+          name: newCategoryName.trim(),
+          cgst: cgstVal,
+          sgst: sgstVal
+        })
       })
 
       const data = await res.json()
       if (res.ok) {
         setNewCategoryName('')
+        setNewCategoryCgst('0')
+        setNewCategorySgst('0')
         fetchCategories()
       } else {
         setCategoryError(data.error || 'Failed to add category')
       }
     } catch (err) {
       setCategoryError('An error occurred while adding category')
+    }
+  }
+
+  const handleEditCategory = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (isSalesperson || !editingCategory) return
+    setCategoryError(null)
+    if (!editCategoryName.trim()) return
+
+    const cgstVal = parseFloat(editCategoryCgst)
+    const sgstVal = parseFloat(editCategorySgst)
+    if (isNaN(cgstVal) || cgstVal < 0 || isNaN(sgstVal) || sgstVal < 0) {
+      setCategoryError('CGST and SGST must be valid non-negative numbers')
+      return
+    }
+
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingCategory.id,
+          name: editCategoryName.trim(),
+          cgst: cgstVal,
+          sgst: sgstVal
+        })
+      })
+
+      const data = await res.json()
+      if (res.ok) {
+        setEditingCategory(null)
+        setEditCategoryName('')
+        setEditCategoryCgst('0')
+        setEditCategorySgst('0')
+        fetchCategories()
+        fetchInventory()
+      } else {
+        setCategoryError(data.error || 'Failed to update category')
+      }
+    } catch (err) {
+      setCategoryError('An error occurred while updating category')
     }
   }
 
@@ -198,15 +261,21 @@ export default function InventoryPage() {
                 <tr key={prod.id} className="hover:bg-slate-50/50 transition">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-xl border border-emerald-100">
-                        {prod.category === 'Fruits' && '🍎'}
-                        {prod.category === 'Vegetables' && '🥦'}
-                        {prod.category === 'Grains' && '🌾'}
-                        {prod.category === 'Dairy' && '🥛'}
-                        {prod.category === 'Honey & Jams' && '🍯'}
-                        {prod.category === 'Herbs & Spices' && '🌿'}
-                        {prod.category === 'Meat' && '🥩'}
-                        {!['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Honey & Jams', 'Herbs & Spices', 'Meat'].includes(prod.category) && '🌱'}
+                      <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-xl border border-emerald-100 overflow-hidden shrink-0">
+                        {prod.image ? (
+                          <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <>
+                            {prod.category === 'Fruits' && '🍎'}
+                            {prod.category === 'Vegetables' && '🥦'}
+                            {prod.category === 'Grains' && '🌾'}
+                            {prod.category === 'Dairy' && '🥛'}
+                            {prod.category === 'Honey & Jams' && '🍯'}
+                            {prod.category === 'Herbs & Spices' && '🌿'}
+                            {prod.category === 'Meat' && '🥩'}
+                            {!['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Honey & Jams', 'Herbs & Spices', 'Meat'].includes(prod.category) && '🌱'}
+                          </>
+                        )}
                       </div>
                       <div>
                         <span className="font-bold text-slate-900 block">{prod.name}</span>
@@ -220,7 +289,27 @@ export default function InventoryPage() {
                     </Badge>
                   </td>
                   <td className="px-6 py-4 text-sm font-black text-slate-950">
-                    ₹{prod.price.toFixed(2)}
+                    {(() => {
+                      let sizes: any[] = []
+                      if (prod.unitSizes) {
+                        try {
+                          sizes = JSON.parse(prod.unitSizes)
+                        } catch {}
+                      }
+                      if (sizes && sizes.length > 0) {
+                        return (
+                          <div className="space-y-1.5 text-xs font-semibold">
+                            {sizes.map((s: any) => (
+                              <div key={s.id} className="flex items-center gap-1.5">
+                                <span className="text-slate-450 font-bold">{s.size}:</span>
+                                <span className="text-slate-900 font-black">₹{parseFloat(s.price).toFixed(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      }
+                      return `₹${prod.price.toFixed(2)}`
+                    })()}
                   </td>
                   <td className="px-6 py-4">
                     {(() => {
@@ -305,23 +394,110 @@ export default function InventoryPage() {
               </div>
 
               <div className="p-6 space-y-6">
-                {/* Add Category Form */}
-                <form onSubmit={handleAddCategory} className="flex gap-2">
-                  <input
-                    type="text"
-                    required
-                    placeholder="New Category Name (e.g. Berries)"
-                    className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-950 placeholder-slate-400 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 font-medium"
-                    value={newCategoryName}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
-                  />
-                  <button
-                    type="submit"
-                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition shadow-md shadow-emerald-600/10 hover:shadow"
-                  >
-                    Add
-                  </button>
-                </form>
+                {editingCategory ? (
+                  /* Edit Category Form */
+                  <form onSubmit={handleEditCategory} className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-3">
+                    <span className="text-xs font-bold text-slate-700 block">Editing Category: {editingCategory.name}</span>
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        required
+                        placeholder="Category Name"
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-950 outline-none bg-white font-semibold"
+                        value={editCategoryName}
+                        onChange={(e) => setEditCategoryName(e.target.value)}
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">CGST (%)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            required
+                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-950 outline-none bg-white font-semibold"
+                            value={editCategoryCgst}
+                            onChange={(e) => setEditCategoryCgst(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">SGST (%)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            required
+                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-950 outline-none bg-white font-semibold"
+                            value={editCategorySgst}
+                            onChange={(e) => setEditCategorySgst(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setEditingCategory(null)}
+                        className="px-3 py-1.5 bg-slate-250 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-lg transition"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  /* Add Category Form */
+                  <form onSubmit={handleAddCategory} className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-3">
+                    <span className="text-xs font-bold text-slate-700 block">Add New Category</span>
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        required
+                        placeholder="Category Name (e.g. Berries)"
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-950 outline-none bg-white font-semibold"
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">CGST (%)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            required
+                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-950 outline-none bg-white font-semibold"
+                            value={newCategoryCgst}
+                            onChange={(e) => setNewCategoryCgst(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">SGST (%)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            required
+                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-950 outline-none bg-white font-semibold"
+                            value={newCategorySgst}
+                            onChange={(e) => setNewCategorySgst(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="submit"
+                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-md shadow-emerald-600/10"
+                    >
+                      + Create Category
+                    </button>
+                  </form>
+                )}
 
                 {categoryError && (
                   <div className="rounded-lg bg-rose-50 border border-rose-100 p-3 text-xs text-rose-600 font-semibold">
@@ -339,20 +515,41 @@ export default function InventoryPage() {
                       key={cat.id}
                       className="flex items-center justify-between bg-slate-50 border border-slate-100 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-800"
                     >
-                      <span>{cat.name}</span>
-                      {cat.name.toLowerCase() !== 'other' ? (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteCategory(cat.id, cat.name)}
-                          className="text-xs font-bold text-rose-600 hover:text-rose-700 transition"
-                        >
-                          Delete
-                        </button>
-                      ) : (
-                        <span className="text-xs text-slate-400 font-medium italic">
-                          System Default
+                      <div className="flex flex-col">
+                        <span>{cat.name}</span>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          CGST: {cat.cgst || 0}% | SGST: {cat.sgst || 0}%
                         </span>
-                      )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {cat.name.toLowerCase() !== 'other' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingCategory(cat)
+                              setEditCategoryName(cat.name)
+                              setEditCategoryCgst((cat.cgst || 0).toString())
+                              setEditCategorySgst((cat.sgst || 0).toString())
+                            }}
+                            className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {cat.name.toLowerCase() !== 'other' ? (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                            className="text-xs font-bold text-rose-600 hover:text-rose-700 transition"
+                          >
+                            Delete
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-400 font-medium italic">
+                            System Default
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -185,6 +185,7 @@ export async function GET(request: NextRequest) {
     // 4. Low stock items (alert for individual unit sizes separately if stock <= 5)
     const lowStockItems: any[] = []
     products.forEach(prod => {
+      if (prod.isDeleted) return
       if (prod.unitSizes) {
         try {
           const sizes = JSON.parse(prod.unitSizes) as Array<{ id: string; size: string; price: number; quantity: number }>

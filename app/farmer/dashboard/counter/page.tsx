@@ -19,6 +19,7 @@ interface Product {
   category: string
   farmerId: string
   unitSizes?: string | null
+  image?: string | null
 }
 
 interface CartItem {
@@ -435,7 +436,7 @@ export default function LiveCounterPage() {
                 <p className="text-sm font-bold">No stock found in this category.</p>
               </div>
             ) : (
-              <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pb-4">
+              <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pb-4 content-start">
                 {filteredProducts.map((product) => {
                   const sizes = getProductSizeDetails(product)
                   const hasSizes = sizes && sizes.length > 0
@@ -459,84 +460,124 @@ export default function LiveCounterPage() {
                     <Card
                       key={product.id}
                       hoverEffect={!outOfStock}
-                      className={`p-3 border border-slate-100 bg-white flex flex-col justify-between transition rounded-2xl ${
-                        outOfStock ? 'opacity-50 bg-slate-50' : 'hover:border-emerald-250'
+                      className={`p-3.5 border border-slate-150 bg-white flex flex-col transition rounded-3xl h-full shadow-sm ${
+                        outOfStock ? 'opacity-60 bg-slate-50/50' : 'hover:border-emerald-300'
                       }`}
                     >
-                      <div className="flex items-start gap-2.5">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-50 text-xl flex items-center justify-center border border-emerald-100 shrink-0 font-sans">
-                          {product.category === 'Fruits' && '🍎'}
-                          {product.category === 'Vegetables' && '🥦'}
-                          {product.category === 'Grains' && '🌾'}
-                          {product.category === 'Dairy' && '🥛'}
-                          {product.category === 'Honey & Jams' && '🍯'}
-                          {product.category === 'Herbs & Spices' && '🌿'}
-                          {!['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Honey & Jams', 'Herbs & Spices'].includes(product.category) && '🌱'}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h3 className="font-bold text-slate-900 text-xs truncate" title={product.name}>{product.name}</h3>
-                          <span className="text-xxs uppercase tracking-wider font-extrabold text-slate-400 block mt-0.5">
+                      {/* Full-width image header container */}
+                      <div className="w-full h-28 bg-emerald-50/40 rounded-2xl flex items-center justify-center text-4xl mb-3 select-none overflow-hidden border border-slate-100 relative shrink-0">
+                        {/* Category pill overlaid top-left */}
+                        <div className="absolute top-2.5 left-2.5 z-10">
+                          <Badge variant="info" className="opacity-95 text-[9px] px-2 py-0.5 font-extrabold uppercase tracking-wider">
                             {product.category}
-                          </span>
+                          </Badge>
                         </div>
+                        
+                        {/* Stock Warning overlaid top-right */}
+                        {outOfStock ? (
+                          <div className="absolute top-2.5 right-2.5 z-10">
+                            <Badge variant="danger" className="text-[9px] px-2 py-0.5 font-bold">Sold Out</Badge>
+                          </div>
+                        ) : activeStock > 0 && activeStock <= 5 ? (
+                          <div className="absolute top-2.5 right-2.5 z-10">
+                            <Badge variant="warning" className="text-[9px] px-2 py-0.5 font-bold">Only {activeStock} Left</Badge>
+                          </div>
+                        ) : null}
+
+                        {product.image ? (
+                          <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <>
+                            {product.category === 'Fruits' && '🍎'}
+                            {product.category === 'Vegetables' && '🥦'}
+                            {product.category === 'Grains' && '🌾'}
+                            {product.category === 'Dairy' && '🥛'}
+                            {product.category === 'Honey & Jams' && '🍯'}
+                            {product.category === 'Herbs & Spices' && '🌿'}
+                            {!['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Honey & Jams', 'Herbs & Spices'].includes(product.category) && '🌱'}
+                          </>
+                        )}
                       </div>
 
-                      {/* Dropdown for multiple unit sizes if defined */}
-                      {hasSizes && (
-                        <div className="mt-2.5">
-                          <select
-                            className="block w-full border border-slate-200 rounded-lg px-2 py-1 text-xxs font-semibold outline-none bg-white text-slate-800"
-                            value={selectedUnitSizes[product.id] || sizes![0].size}
-                            onChange={(e) => {
-                              setSelectedUnitSizes({
-                                ...selectedUnitSizes,
-                                [product.id]: e.target.value
-                              })
-                            }}
-                          >
-                            {sizes!.map(s => (
-                              <option key={s.id} value={s.size}>
-                                {s.size} (₹{s.price.toFixed(0)}) - Stock: {s.quantity}
-                              </option>
-                            ))}
-                          </select>
+                      <div className="flex-1 flex flex-col">
+                        <div>
+                          <h3 className="font-extrabold text-slate-900 text-xs tracking-tight leading-snug line-clamp-1 mb-1.5" title={product.name}>
+                            {product.name}
+                          </h3>
                           
+                          {/* Dropdown for multiple unit sizes if defined */}
+                          {hasSizes && (
+                            <div className="mt-1.5 mb-2">
+                              <label className="block text-[8px] font-extrabold uppercase tracking-wider text-slate-400 mb-0.5">
+                                Select Unit Size
+                              </label>
+                              <select
+                                className="block w-full border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-semibold outline-none bg-white text-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                                value={selectedUnitSizes[product.id] || sizes![0].size}
+                                onChange={(e) => {
+                                  setSelectedUnitSizes({
+                                    ...selectedUnitSizes,
+                                    [product.id]: e.target.value
+                                  })
+                                }}
+                              >
+                                {sizes!.map(s => (
+                                  <option key={s.id} value={s.size}>
+                                    {s.size} (₹{s.price})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
                           {/* Unit size stocks list breakdown */}
-                          <div className="mt-1.5 flex flex-wrap gap-1 text-[9px] text-slate-500 font-semibold">
-                            {sizes!.map(s => (
-                              <span key={s.id} className="bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100/50 whitespace-nowrap">
-                                {s.size}: <span className={s.quantity === 0 ? 'text-rose-600 font-bold' : 'text-slate-700 font-bold'}>{s.quantity}</span>
-                              </span>
-                            ))}
+                          <div className="mb-2 text-[9px] font-semibold text-slate-450 uppercase tracking-wider">
+                            {hasSizes ? (
+                              <div className="space-y-1">
+                                <span className="block text-[8px] text-slate-400 font-extrabold uppercase">Unit Stocks:</span>
+                                <div className="flex flex-wrap gap-1 text-slate-700 font-bold">
+                                  {sizes!.map(s => (
+                                    <span key={s.id} className="bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100/50 whitespace-nowrap">
+                                      {s.size}: <span className={s.quantity === 0 ? 'text-rose-600 font-bold' : 'text-slate-700 font-bold'}>{s.quantity}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                Stock: <span className="font-extrabold text-slate-700">{activeStock} units</span>
+                              </div>
+                            )}
                           </div>
                         </div>
-                      )}
 
-                      <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-50">
-                        <div>
-                          <span className="text-xxs uppercase tracking-wider font-extrabold text-slate-400 block leading-none">Rate</span>
-                          <span className="text-xs font-black text-slate-950 mt-0.5 block">₹{activePrice.toFixed(2)}</span>
-                        </div>
+                        {/* Bottom Rate & Cart action */}
+                        <div className="flex items-center justify-between pt-2.5 border-t border-slate-100 mt-auto">
+                          <div>
+                            <span className="text-[9px] uppercase tracking-wider font-extrabold text-slate-400 block leading-none">Rate</span>
+                            <span className="text-xs font-black text-slate-950 mt-1 block">₹{activePrice.toFixed(2)}</span>
+                          </div>
 
-                        <div className="flex items-center gap-2">
-                          {outOfStock ? (
-                            <Badge variant="danger" className="text-xxs">Sold Out</Badge>
-                          ) : (
-                            <>
-                              <div className="text-right shrink-0">
-                                <span className="text-xxs uppercase tracking-wider font-extrabold text-slate-400 block leading-none">Stock</span>
-                                <span className="text-xxs font-bold text-slate-700 mt-0.5 block">{activeStock} U</span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => addToCart(product)}
-                                className="w-7 h-7 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center text-sm font-black transition active:scale-[0.93] shadow-sm shrink-0"
-                                title="Add to Stall Cart"
-                              >
-                                +
-                              </button>
-                            </>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {!outOfStock ? (
+                              <>
+                                <div className="text-right shrink-0">
+                                  <span className="text-[9px] uppercase tracking-wider font-extrabold text-slate-400 block leading-none">Stock</span>
+                                  <span className="text-xxs font-bold text-slate-700 mt-1 block">{activeStock} U</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => addToCart(product)}
+                                  className="w-7 h-7 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center text-sm font-black transition active:scale-[0.93] shadow-sm shrink-0"
+                                  title="Add to Stall Cart"
+                                >
+                                  +
+                                </button>
+                              </>
+                            ) : (
+                              <Badge variant="danger" className="text-[9px] px-1.5 py-0.5 font-bold">Sold Out</Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </Card>
@@ -592,9 +633,8 @@ export default function LiveCounterPage() {
               </div>
             )}
 
-            {/* Customer Details Form */}
             <form onSubmit={handleCheckout} className="space-y-4 pt-4 border-t border-slate-100">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xxs font-bold uppercase tracking-wider text-slate-450 mb-1">
                     Customer Name <span className="text-rose-500 font-bold ml-0.5">^</span>
@@ -623,7 +663,7 @@ export default function LiveCounterPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xxs font-bold uppercase tracking-wider text-slate-455 mb-1">
                     Customer Address <span className="text-rose-500 font-bold ml-0.5">^</span>

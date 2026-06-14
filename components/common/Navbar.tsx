@@ -150,9 +150,6 @@ export default function Navbar() {
                   <Link href="/farmer/dashboard/inventory" className={navLinkStyle('/farmer/dashboard/inventory')}>
                     📦 Inventory
                   </Link>
-                  <Link href="/farmer/dashboard/stalls" className={navLinkStyle('/farmer/dashboard/stalls')}>
-                    🎪 Stall Areas
-                  </Link>
                   <Link href="/farmer/dashboard/stall-sales" className={navLinkStyle('/farmer/dashboard/stall-sales')}>
                     📊 Stall Sales
                   </Link>
@@ -176,6 +173,9 @@ export default function Navbar() {
                   </Link>
                   <Link href="/farmer/dashboard/stall-sales" className={navLinkStyle('/farmer/dashboard/stall-sales')}>
                     📊 Stall Sales
+                  </Link>
+                  <Link href="/farmer/dashboard/stalls" className={navLinkStyle('/farmer/dashboard/stalls')}>
+                    🎪 Stall Areas
                   </Link>
                   <Link href="/farmer/dashboard/credentials" className={navLinkStyle('/farmer/dashboard/credentials')}>
                     🔑 Staff Credentials
@@ -309,7 +309,7 @@ export default function Navbar() {
 
                   <button
                     onClick={handleLogout}
-                    className="rounded-lg border border-slate-200 hover:border-rose-200 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 px-3 py-1.5 text-xs font-bold shadow-sm transition active:scale-[0.98]"
+                    className="hidden sm:block rounded-lg border border-slate-200 hover:border-rose-200 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 px-3 py-1.5 text-xs font-bold shadow-sm transition active:scale-[0.98]"
                   >
                     Logout
                   </button>
@@ -396,13 +396,6 @@ export default function Navbar() {
                 📦 Inventory
               </Link>
               <Link
-                href="/farmer/dashboard/stalls"
-                className={mobileNavLinkStyle('/farmer/dashboard/stalls')}
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                🎪 Stall Areas
-              </Link>
-              <Link
                 href="/farmer/dashboard/stall-sales"
                 className={mobileNavLinkStyle('/farmer/dashboard/stall-sales')}
                 onClick={() => setIsMobileMenuOpen(false)}
@@ -453,6 +446,13 @@ export default function Navbar() {
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 📊 Stall Sales
+              </Link>
+              <Link
+                href="/farmer/dashboard/stalls"
+                className={mobileNavLinkStyle('/farmer/dashboard/stalls')}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                🎪 Stall Areas
               </Link>
               <Link
                 href="/farmer/dashboard/credentials"

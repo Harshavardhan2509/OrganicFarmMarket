@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')
     const sort = searchParams.get('sort')
 
-    let whereClause: any = {}
+    let whereClause: any = { isDeleted: false }
 
     if (category && category !== 'All') {
       whereClause.category = category
@@ -32,6 +32,8 @@ export async function GET(request: NextRequest) {
     } else if (sort === 'price-desc') {
       orderByClause = { price: 'desc' }
     }
+
+    const categories = await prisma.category.findMany()
 
     const products = await prisma.product.findMany({
       where: whereClause,
@@ -58,7 +60,38 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json(products)
+    const processedProducts = products.map(prod => {
+      const cat = categories.find(c => c.name === prod.category)
+      const cgst = cat ? cat.cgst : 0
+      const sgst = cat ? cat.sgst : 0
+      const totalGstRate = cgst + sgst
+      
+      const displayPrice = Math.round(prod.price * (1 + totalGstRate / 100))
+      
+      let processedUnitSizes = prod.unitSizes
+      if (prod.unitSizes) {
+        try {
+          const sizes = JSON.parse(prod.unitSizes) as Array<{ id: string; size: string; price: number; quantity: number }>
+          const updatedSizes = sizes.map(s => ({
+            ...s,
+            basePrice: s.price,
+            price: Math.round(s.price * (1 + totalGstRate / 100))
+          }))
+          processedUnitSizes = JSON.stringify(updatedSizes)
+        } catch (err) {
+          console.error('Failed to process unitSizes on product list GET:', err)
+        }
+      }
+
+      return {
+        ...prod,
+        basePrice: prod.price,
+        price: displayPrice,
+        unitSizes: processedUnitSizes
+      }
+    })
+
+    return NextResponse.json(processedProducts)
   } catch (error) {
     console.error('Products GET error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -112,16 +145,32 @@ export async function POST(request: NextRequest) {
     })
 
     // Log initial stock setup
-    await prisma.stockHistory.create({
-      data: {
-        productId: product.id,
-        oldQuantity: 0,
-        newQuantity: product.quantity,
-        change: product.quantity,
-        action: 'set',
-        reason: 'Initial stock setup'
+    if (product.unitSizes) {
+      const sizes = JSON.parse(product.unitSizes) as Array<{ id: string; size: string; price: number; quantity: number }>
+      for (const sizeObj of sizes) {
+        await prisma.stockHistory.create({
+          data: {
+            productId: product.id,
+            oldQuantity: 0,
+            newQuantity: sizeObj.quantity,
+            change: sizeObj.quantity,
+            action: 'set',
+            reason: `[Size: ${sizeObj.size}] Initial stock setup`
+          }
+        })
       }
-    })
+    } else {
+      await prisma.stockHistory.create({
+        data: {
+          productId: product.id,
+          oldQuantity: 0,
+          newQuantity: product.quantity,
+          change: product.quantity,
+          action: 'set',
+          reason: 'Initial stock setup'
+        }
+      })
+    }
 
     return NextResponse.json(product, { status: 201 })
   } catch (error) {

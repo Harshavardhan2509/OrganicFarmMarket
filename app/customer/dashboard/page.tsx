@@ -321,15 +321,21 @@ export default function CustomerDashboard() {
                     </div>
                   ) : null}
 
-                  {/* Image Placeholder */}
-                  <div className="w-full h-44 bg-emerald-50/50 rounded-2xl flex items-center justify-center text-5xl mb-4 select-none transition group-hover:scale-[1.02]">
-                    {prod.category === 'Fruits' && '🍎'}
-                    {prod.category === 'Vegetables' && '🥦'}
-                    {prod.category === 'Grains' && '🌾'}
-                    {prod.category === 'Dairy' && '🥛'}
-                    {prod.category === 'Honey & Jams' && '🍯'}
-                    {prod.category === 'Herbs & Spices' && '🌿'}
-                    {!['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Honey & Jams', 'Herbs & Spices'].includes(prod.category) && '🌱'}
+                  {/* Image Placeholder / Product Image */}
+                  <div className="w-full h-44 bg-emerald-50/50 rounded-2xl flex items-center justify-center text-5xl mb-4 select-none transition group-hover:scale-[1.02] overflow-hidden border border-slate-100">
+                    {prod.image ? (
+                      <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <>
+                        {prod.category === 'Fruits' && '🍎'}
+                        {prod.category === 'Vegetables' && '🥦'}
+                        {prod.category === 'Grains' && '🌾'}
+                        {prod.category === 'Dairy' && '🥛'}
+                        {prod.category === 'Honey & Jams' && '🍯'}
+                        {prod.category === 'Herbs & Spices' && '🌿'}
+                        {!['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Honey & Jams', 'Herbs & Spices'].includes(prod.category) && '🌱'}
+                      </>
+                    )}
                   </div>
 
                   <div className="flex-1 flex flex-col">

@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session || !['farmer', 'salesperson'].includes((session.user as any).role)) {
+    if (!session || (session.user as any).role !== 'farmer') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

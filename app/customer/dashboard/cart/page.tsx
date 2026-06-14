@@ -21,6 +21,7 @@ interface CartItem {
     price: number
     category: string
     quantity: number // Stock
+    image?: string | null
     unitSizes?: string
   }
 }
@@ -426,15 +427,21 @@ export default function CartPage() {
               {cart.items.map((item) => (
                 <Card key={item.id} hoverEffect={false} className="bg-white p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-slate-100">
                   <div className="flex items-center gap-4">
-                    {/* Item category emoji avatar */}
-                    <div className="w-14 h-14 bg-emerald-50 rounded-xl flex items-center justify-center text-3xl">
-                      {item.product.category === 'Fruits' && '🍎'}
-                      {item.product.category === 'Vegetables' && '🥦'}
-                      {item.product.category === 'Grains' && '🌾'}
-                      {item.product.category === 'Dairy' && '🥛'}
-                      {item.product.category === 'Honey & Jams' && '🍯'}
-                      {item.product.category === 'Herbs & Spices' && '🌿'}
-                      {!['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Honey & Jams', 'Herbs & Spices'].includes(item.product.category) && '🌱'}
+                    {/* Item category emoji avatar / product image */}
+                    <div className="w-14 h-14 bg-emerald-50 rounded-xl flex items-center justify-center text-3xl overflow-hidden shrink-0 border border-slate-100">
+                      {item.product.image ? (
+                        <img src={item.product.image} alt={item.product.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <>
+                          {item.product.category === 'Fruits' && '🍎'}
+                          {item.product.category === 'Vegetables' && '🥦'}
+                          {item.product.category === 'Grains' && '🌾'}
+                          {item.product.category === 'Dairy' && '🥛'}
+                          {item.product.category === 'Honey & Jams' && '🍯'}
+                          {item.product.category === 'Herbs & Spices' && '🌿'}
+                          {!['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Honey & Jams', 'Herbs & Spices'].includes(item.product.category) && '🌱'}
+                        </>
+                      )}
                     </div>
 
                     <div>

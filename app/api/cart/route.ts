@@ -16,6 +16,11 @@ export async function GET(request: NextRequest) {
       where: { userId: (session.user as any).id },
       include: {
         items: {
+          where: {
+            product: {
+              isDeleted: false
+            }
+          },
           include: {
             product: true
           }
@@ -34,6 +39,45 @@ export async function GET(request: NextRequest) {
             }
           }
         }
+      })
+    }
+
+    // Now process the products inside the cart to have displayPrice as price
+    const categories = await prisma.category.findMany()
+    if (cart.items) {
+      cart.items = cart.items.map(item => {
+        const product = item.product
+        if (!product) return item
+        
+        const cat = categories.find(c => c.name === product.category)
+        const cgst = cat ? cat.cgst : 0
+        const sgst = cat ? cat.sgst : 0
+        const totalGstRate = cgst + sgst
+        
+        const displayPrice = Math.round(product.price * (1 + totalGstRate / 100))
+        
+        let processedUnitSizes = product.unitSizes
+        if (product.unitSizes) {
+          try {
+            const sizes = JSON.parse(product.unitSizes) as Array<{ id: string; size: string; price: number; quantity: number }>
+            const updatedSizes = sizes.map(s => ({
+              ...s,
+              basePrice: s.price,
+              price: Math.round(s.price * (1 + totalGstRate / 100))
+            }))
+            processedUnitSizes = JSON.stringify(updatedSizes)
+          } catch (err) {
+            console.error('Failed to process unitSizes on cart GET:', err)
+          }
+        }
+
+        ;(item as any).product = {
+          ...product,
+          basePrice: product.price,
+          price: displayPrice,
+          unitSizes: processedUnitSizes
+        }
+        return item
       })
     }
 
@@ -68,8 +112,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Check product availability
-    const product = await prisma.product.findUnique({
-      where: { id: productId }
+    const product = await prisma.product.findFirst({
+      where: { id: productId, isDeleted: false }
     })
 
     if (!product) {

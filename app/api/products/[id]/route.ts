@@ -41,11 +41,42 @@ export async function GET(
       }
     })
 
-    if (!product) {
+    if (!product || product.isDeleted) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     }
 
-    return NextResponse.json(product)
+    const cat = await prisma.category.findUnique({
+      where: { name: product.category }
+    })
+    const cgst = cat ? cat.cgst : 0
+    const sgst = cat ? cat.sgst : 0
+    const totalGstRate = cgst + sgst
+    
+    const displayPrice = Math.round(product.price * (1 + totalGstRate / 100))
+    
+    let processedUnitSizes = product.unitSizes
+    if (product.unitSizes) {
+      try {
+        const sizes = JSON.parse(product.unitSizes) as Array<{ id: string; size: string; price: number; quantity: number }>
+        const updatedSizes = sizes.map(s => ({
+          ...s,
+          basePrice: s.price,
+          price: Math.round(s.price * (1 + totalGstRate / 100))
+        }))
+        processedUnitSizes = JSON.stringify(updatedSizes)
+      } catch (err) {
+        console.error('Failed to process unitSizes on product ID GET:', err)
+      }
+    }
+
+    const processedProduct = {
+      ...product,
+      basePrice: product.price,
+      price: displayPrice,
+      unitSizes: processedUnitSizes
+    }
+
+    return NextResponse.json(processedProduct)
   } catch (error) {
     console.error('Product detail GET error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -115,8 +146,8 @@ export async function PUT(
             finalPrice = sizes[0].price // price is first size's price
 
             historyRecord = {
-              oldQuantity: product.quantity,
-              newQuantity: finalQuantity,
+              oldQuantity: oldQty,
+              newQuantity: newQty,
               change: newQty - oldQty,
               action,
               reason: `[Size: ${sizeObj.size}] ${reason?.trim() || 'Manual stock update'}`
@@ -156,14 +187,57 @@ export async function PUT(
       const oldQuantity = product.quantity
       if (oldQuantity !== totalQty) {
         finalQuantity = totalQty
-        historyRecord = {
-          oldQuantity,
-          newQuantity: totalQty,
-          change: totalQty - oldQuantity,
-          action: 'set',
-          reason: 'Manual edit of unit size stock levels'
+        
+        // Create history records for each unit size that changed
+        const oldSizes = product.unitSizes ? (JSON.parse(product.unitSizes) as Array<{ id: string; size: string; price: number; quantity: number }>) : []
+        const historyRecordsToCreate: any[] = []
+        
+        for (const newSize of parsedSizes) {
+          const oldSize = oldSizes.find(s => s.id === newSize.id || s.size === newSize.size)
+          const oldQty = oldSize ? oldSize.quantity : 0
+          const change = newSize.quantity - oldQty
+          if (change !== 0) {
+            historyRecordsToCreate.push({
+              productId: params.id,
+              oldQuantity: oldQty,
+              newQuantity: newSize.quantity,
+              change,
+              action: 'set',
+              reason: `[Size: ${newSize.size}] Manual edit of unit size stock levels`
+            })
+          }
         }
-        historyCreated = true
+        
+        // If there were sizes in oldSizes that are NOT in parsedSizes, treat them as deleted/0 stock
+        for (const oldSize of oldSizes) {
+          const newSize = parsedSizes.find(s => s.id === oldSize.id || s.size === oldSize.size)
+          if (!newSize && oldSize.quantity > 0) {
+            historyRecordsToCreate.push({
+              productId: params.id,
+              oldQuantity: oldSize.quantity,
+              newQuantity: 0,
+              change: -oldSize.quantity,
+              action: 'remove',
+              reason: `[Size: ${oldSize.size}] Removed unit size`
+            })
+          }
+        }
+        
+        if (historyRecordsToCreate.length > 0) {
+          for (const rec of historyRecordsToCreate) {
+            await prisma.stockHistory.create({ data: rec })
+          }
+          historyCreated = false // Already created in the loop
+        } else {
+          historyRecord = {
+            oldQuantity,
+            newQuantity: totalQty,
+            change: totalQty - oldQuantity,
+            action: 'set',
+            reason: 'Manual edit of unit size stock levels'
+          }
+          historyCreated = true
+        }
       }
     }
 
@@ -222,8 +296,9 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden. You do not own this product.' }, { status: 403 })
     }
 
-    await prisma.product.delete({
-      where: { id: params.id }
+    await prisma.product.update({
+      where: { id: params.id },
+      data: { isDeleted: true }
     })
 
     return NextResponse.json({ message: 'Product deleted successfully' })

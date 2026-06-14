@@ -44,14 +44,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized. Farmers only.' }, { status: 401 })
     }
 
-    const { name } = await request.json()
+    const { name, cgst, sgst } = await request.json()
     if (!name || !name.trim()) {
       return NextResponse.json({ error: 'Category name is required' }, { status: 400 })
     }
 
     const trimmedName = name.trim()
 
-    // Check if category already exists (case-insensitive check is best, but let's query exactly)
+    // Check if category already exists
     const existing = await prisma.category.findUnique({
       where: { name: trimmedName }
     })
@@ -60,13 +60,99 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Category already exists' }, { status: 400 })
     }
 
+    const parsedCgst = cgst !== undefined ? parseFloat(cgst) : 0
+    const parsedSgst = sgst !== undefined ? parseFloat(sgst) : 0
+
+    if (isNaN(parsedCgst) || parsedCgst < 0 || isNaN(parsedSgst) || parsedSgst < 0) {
+      return NextResponse.json({ error: 'CGST and SGST must be valid non-negative numbers' }, { status: 400 })
+    }
+
     const category = await prisma.category.create({
-      data: { name: trimmedName }
+      data: {
+        name: trimmedName,
+        cgst: parsedCgst,
+        sgst: parsedSgst
+      }
     })
 
     return NextResponse.json(category, { status: 201 })
   } catch (error) {
     console.error('Category POST error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session || !(session.user as any).id || (session.user as any).role !== 'farmer') {
+      return NextResponse.json({ error: 'Unauthorized. Farmers only.' }, { status: 401 })
+    }
+
+    const { id, name, cgst, sgst } = await request.json()
+    if (!id) {
+      return NextResponse.json({ error: 'Category ID is required' }, { status: 400 })
+    }
+
+    const category = await prisma.category.findUnique({
+      where: { id }
+    })
+
+    if (!category) {
+      return NextResponse.json({ error: 'Category not found' }, { status: 404 })
+    }
+
+    const oldName = category.name
+    let trimmedName = oldName
+    if (name !== undefined) {
+      if (!name || !name.trim()) {
+        return NextResponse.json({ error: 'Category name cannot be empty' }, { status: 400 })
+      }
+      trimmedName = name.trim()
+    }
+
+    // Check if new name taken by another category
+    if (trimmedName !== oldName) {
+      const duplicate = await prisma.category.findUnique({
+        where: { name: trimmedName }
+      })
+      if (duplicate) {
+        return NextResponse.json({ error: 'A category with this name already exists' }, { status: 400 })
+      }
+      
+      if (oldName.toLowerCase() === 'other') {
+        return NextResponse.json({ error: 'Cannot rename the default "Other" category' }, { status: 400 })
+      }
+    }
+
+    const parsedCgst = cgst !== undefined ? parseFloat(cgst) : category.cgst
+    const parsedSgst = sgst !== undefined ? parseFloat(sgst) : category.sgst
+
+    if (isNaN(parsedCgst) || parsedCgst < 0 || isNaN(parsedSgst) || parsedSgst < 0) {
+      return NextResponse.json({ error: 'CGST and SGST must be valid non-negative numbers' }, { status: 400 })
+    }
+
+    // Update Category
+    const updatedCategory = await prisma.category.update({
+      where: { id },
+      data: {
+        name: trimmedName,
+        cgst: parsedCgst,
+        sgst: parsedSgst
+      }
+    })
+
+    // If name changed, update existing products using the old name
+    if (trimmedName !== oldName) {
+      await prisma.product.updateMany({
+        where: { category: oldName },
+        data: { category: trimmedName }
+      })
+    }
+
+    return NextResponse.json(updatedCategory)
+  } catch (error) {
+    console.error('Category PUT error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

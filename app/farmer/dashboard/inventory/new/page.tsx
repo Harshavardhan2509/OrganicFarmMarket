@@ -30,7 +30,37 @@ export default function AddProductPage() {
     { id: '1', size: '1 Unit', price: '', quantity: '' }
   ])
 
-  const [categories, setCategories] = useState<string[]>(Array.from(PRODUCT_CATEGORIES))
+  const [categories, setCategories] = useState<any[]>([])
+  const [uploadingImage, setUploadingImage] = useState(false)
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadingImage(true)
+    const formData = new FormData()
+    formData.append('file', file)
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        setImage(data.url)
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to upload image')
+      }
+    } catch (err) {
+      console.error('Upload error:', err)
+      alert('An error occurred during file upload.')
+    } finally {
+      setUploadingImage(false)
+    }
+  }
 
   const router = useRouter()
 
@@ -40,17 +70,13 @@ export default function AddProductPage() {
         const res = await fetch('/api/categories')
         if (res.ok) {
           const data = await res.json()
-          const catNames = data.map((c: any) => c.name)
-          setCategories(catNames)
-          if (catNames.length > 0) {
-            setCategory(catNames[0])
+          setCategories(data)
+          if (data.length > 0) {
+            setCategory(data[0].name)
           }
-        } else {
-          setCategory(PRODUCT_CATEGORIES[0])
         }
       } catch (err) {
         console.error(err)
-        setCategory(PRODUCT_CATEGORIES[0])
       }
     }
     fetchCategories()
@@ -175,8 +201,8 @@ export default function AddProductPage() {
                   onChange={(e) => setCategory(e.target.value)}
                 >
                   {categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
+                    <option key={cat.id} value={cat.name}>
+                      {cat.name}
                     </option>
                   ))}
                 </select>
@@ -202,9 +228,9 @@ export default function AddProductPage() {
               </p>
 
               <div className="space-y-2">
-                {unitSizes.map((u, idx) => (
-                  <div key={u.id} className="flex gap-2 items-center flex-wrap sm:flex-nowrap bg-slate-50/50 p-2 border border-slate-100 rounded-xl">
-                    <div className="flex-1 min-w-[120px]">
+                {unitSizes.map((u) => (
+                  <div key={u.id} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-slate-50/50 p-3 border border-slate-100 rounded-xl w-full">
+                    <div className="col-span-1 sm:col-span-6">
                       <input
                         type="text"
                         required
@@ -214,7 +240,7 @@ export default function AddProductPage() {
                         className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-950 outline-none focus:border-emerald-500 font-semibold"
                       />
                     </div>
-                    <div className="w-28">
+                    <div className="col-span-1 sm:col-span-3">
                       <input
                         type="number"
                         step="0.01"
@@ -225,8 +251,19 @@ export default function AddProductPage() {
                         onChange={(e) => handleUnitSizeChange(u.id, 'price', e.target.value)}
                         className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-950 outline-none focus:border-emerald-500 font-semibold"
                       />
+                      {(() => {
+                        const selectedCatObj = categories.find(c => c.name === category)
+                        const cgstRate = selectedCatObj ? selectedCatObj.cgst || 0 : 0
+                        const sgstRate = selectedCatObj ? selectedCatObj.sgst || 0 : 0
+                        const totalGstRate = cgstRate + sgstRate
+                        return u.price && !isNaN(parseFloat(u.price)) ? (
+                          <span className="text-[10px] text-emerald-650 font-bold block mt-1 leading-none">
+                            Final: ₹{Math.round(parseFloat(u.price) * (1 + totalGstRate / 100))} (Inc. GST)
+                          </span>
+                        ) : null
+                      })()}
                     </div>
-                    <div className="w-24">
+                    <div className="col-span-1 sm:col-span-2">
                       <input
                         type="number"
                         min="0"
@@ -238,13 +275,15 @@ export default function AddProductPage() {
                       />
                     </div>
                     {unitSizes.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveUnitSize(u.id)}
-                        className="text-rose-600 hover:text-rose-700 font-bold text-xs px-2 py-1 hover:bg-rose-50 rounded-lg transition"
-                      >
-                        Delete
-                      </button>
+                      <div className="col-span-1 sm:col-span-1 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveUnitSize(u.id)}
+                          className="text-rose-650 hover:text-rose-700 font-bold text-xs px-2 py-1 hover:bg-rose-50 rounded-lg transition"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -265,17 +304,54 @@ export default function AddProductPage() {
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider mb-2">
-                Optional Image URL
+            <div className="space-y-3">
+              <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider">
+                Product Image (Upload Local File)
               </label>
-              <input
-                type="url"
-                placeholder="https://example.com/moringa.jpg"
-                value={image}
-                onChange={(e) => setImage(e.target.value)}
-                className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-950 outline-none transition focus:border-emerald-500 font-semibold"
-              />
+              
+              <div className="flex flex-col sm:flex-row gap-4 items-center bg-slate-50/50 p-4 border border-slate-100 rounded-2xl">
+                {/* Visual Image Preview */}
+                <div className="w-24 h-24 bg-white border border-slate-150 rounded-xl flex items-center justify-center text-4xl overflow-hidden shrink-0 shadow-inner">
+                  {image ? (
+                    <img src={image} alt="Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    '🌱'
+                  )}
+                </div>
+                
+                <div className="flex-1 w-full space-y-2">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    id="product-image-file"
+                    className="hidden"
+                    onChange={handleImageUpload}
+                    disabled={uploadingImage}
+                  />
+                  <label
+                    htmlFor="product-image-file"
+                    className="inline-flex items-center justify-center px-4 py-2.5 bg-emerald-50 border border-emerald-100 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold cursor-pointer transition select-none disabled:opacity-50"
+                  >
+                    {uploadingImage ? 'Uploading Image...' : '📁 Choose File from Local Storage'}
+                  </label>
+                  <p className="text-xxs text-slate-400 font-medium">
+                    Upload PNG, JPG, or WEBP. Max size 5MB.
+                  </p>
+                  
+                  {image && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xxs font-mono text-slate-450 truncate max-w-[200px]">{image}</span>
+                      <button
+                        type="button"
+                        onClick={() => setImage('')}
+                        className="text-xxs text-rose-600 hover:text-rose-700 font-bold transition"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="pt-4 border-t border-slate-50 flex justify-end gap-3">

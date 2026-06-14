@@ -17,6 +17,7 @@ interface OrderItem {
   product: {
     name: string
     category: string
+    image?: string | null
   }
 }
 
@@ -278,15 +279,21 @@ export default function CustomerOrdersPage() {
                     {order.items.map((item) => (
                       <div key={item.id} className="flex justify-between items-center py-2 text-sm font-semibold">
                         <div className="flex items-center gap-2">
-                          <span className="text-lg">
-                            {item.product.category === 'Fruits' && '🍎'}
-                            {item.product.category === 'Vegetables' && '🥦'}
-                            {item.product.category === 'Grains' && '🌾'}
-                            {item.product.category === 'Dairy' && '🥛'}
-                            {item.product.category === 'Honey & Jams' && '🍯'}
-                            {item.product.category === 'Herbs & Spices' && '🌿'}
-                            {!['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Honey & Jams', 'Herbs & Spices'].includes(item.product.category) && '🌱'}
-                          </span>
+                          <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center text-lg overflow-hidden shrink-0 border border-slate-100">
+                            {item.product.image ? (
+                              <img src={item.product.image} alt={item.product.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <>
+                                {item.product.category === 'Fruits' && '🍎'}
+                                {item.product.category === 'Vegetables' && '🥦'}
+                                {item.product.category === 'Grains' && '🌾'}
+                                {item.product.category === 'Dairy' && '🥛'}
+                                {item.product.category === 'Honey & Jams' && '🍯'}
+                                {item.product.category === 'Herbs & Spices' && '🌿'}
+                                {!['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Honey & Jams', 'Herbs & Spices'].includes(item.product.category) && '🌱'}
+                              </>
+                            )}
+                          </div>
                           <div>
                             <span className="text-slate-900 block font-bold">{item.product.name}</span>
                             <span className="text-xxs uppercase tracking-wider font-extrabold text-slate-400 block mt-0.5">

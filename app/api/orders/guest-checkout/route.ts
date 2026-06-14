@@ -72,6 +72,8 @@ export async function POST(request: NextRequest) {
         exists = await tx.order.findUnique({ where: { id: orderId } })
       }
 
+      const categories = await tx.category.findMany()
+
       for (const item of items) {
         const product = await tx.product.findUnique({
           where: { id: item.productId }
@@ -81,9 +83,14 @@ export async function POST(request: NextRequest) {
           throw new Error(`Product not found with ID: ${item.productId}`)
         }
 
+        const cat = categories.find(c => c.name === product.category)
+        const cgst = cat ? cat.cgst : 0
+        const sgst = cat ? cat.sgst : 0
+        const totalGstRate = cgst + sgst
+
         const quantityToDeduct = parseInt(item.quantity)
         const selectedUnitSizeName = item.unitSize || null
-        let priceUsed = product.price
+        let priceUsed = Math.round(product.price * (1 + totalGstRate / 100))
 
         if (product.unitSizes) {
           const sizes = JSON.parse(product.unitSizes) as Array<{ id: string; size: string; price: number; quantity: number }>
@@ -96,8 +103,9 @@ export async function POST(request: NextRequest) {
           }
 
           // Deduct quantity
+          const oldSizeQty = sizes[sizeIndex].quantity
           sizes[sizeIndex].quantity -= quantityToDeduct
-          priceUsed = sizes[sizeIndex].price
+          priceUsed = Math.round(sizes[sizeIndex].price * (1 + totalGstRate / 100))
 
           const newUnitSizesStr = JSON.stringify(sizes)
           const newTotalQuantity = sizes.reduce((sum, s) => sum + s.quantity, 0)
@@ -113,8 +121,8 @@ export async function POST(request: NextRequest) {
           await tx.stockHistory.create({
             data: {
               productId: product.id,
-              oldQuantity: product.quantity,
-              newQuantity: newTotalQuantity,
+              oldQuantity: oldSizeQty,
+              newQuantity: sizes[sizeIndex].quantity,
               change: -quantityToDeduct,
               action: 'remove',
               reason: `Guest Marketplace Checkout [${selectedUnitSizeName}]`

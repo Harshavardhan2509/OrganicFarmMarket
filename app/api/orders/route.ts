@@ -152,6 +152,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Validate stock and compute totals
+    const categories = await prisma.category.findMany()
     let totalAmount = 0
     const itemsToCreate: Array<{ productId: string; quantity: number; price: number; unitSize: string | null }> = []
     const stockUpdates: Array<{ productId: string; unitSizes: string | null; quantity: number }> = []
@@ -161,7 +162,13 @@ export async function POST(request: NextRequest) {
       const product = item.product
       const quantityToDeduct = item.quantity
       const selectedUnitSizeName = item.unitSize || null
-      let priceUsed = product.price
+      
+      const cat = categories.find(c => c.name === product.category)
+      const cgst = cat ? cat.cgst : 0
+      const sgst = cat ? cat.sgst : 0
+      const totalGstRate = cgst + sgst
+      
+      let priceUsed = Math.round(product.price * (1 + totalGstRate / 100))
 
       if (product.unitSizes) {
         const sizes = JSON.parse(product.unitSizes) as Array<{ id: string; size: string; price: number; quantity: number }>
@@ -175,7 +182,7 @@ export async function POST(request: NextRequest) {
 
         // Deduct from unit size quantity
         sizes[sizeIndex].quantity -= quantityToDeduct
-        priceUsed = sizes[sizeIndex].price
+        priceUsed = Math.round(sizes[sizeIndex].price * (1 + totalGstRate / 100))
 
         const newUnitSizesStr = JSON.stringify(sizes)
         const newTotalQuantity = sizes.reduce((sum, s) => sum + s.quantity, 0)
@@ -263,13 +270,32 @@ export async function POST(request: NextRequest) {
             }
           })
 
-          const changeQty = update.quantity - originalProduct.quantity
+          let oldQty = originalProduct.quantity
+          let newQty = update.quantity
+          let changeQty = update.quantity - originalProduct.quantity
           const unitLabel = itemsToCreate.find(i => i.productId === update.productId)?.unitSize
+
+          if (originalProduct.unitSizes && unitLabel) {
+            try {
+              const oldSizes = JSON.parse(originalProduct.unitSizes) as Array<{ id: string; size: string; price: number; quantity: number }>
+              const oldSizeObj = oldSizes.find(s => s.size === unitLabel)
+              if (oldSizeObj) {
+                oldQty = oldSizeObj.quantity
+                const newSizes = JSON.parse(update.unitSizes || '[]') as Array<{ id: string; size: string; price: number; quantity: number }>
+                const newSizeObj = newSizes.find(s => s.size === unitLabel)
+                newQty = newSizeObj ? newSizeObj.quantity : oldQty
+                changeQty = newQty - oldQty
+              }
+            } catch (err) {
+              console.error('Failed to parse sizes in history checkout:', err)
+            }
+          }
+
           await tx.stockHistory.create({
             data: {
               productId: update.productId,
-              oldQuantity: originalProduct.quantity,
-              newQuantity: update.quantity,
+              oldQuantity: oldQty,
+              newQuantity: newQty,
               change: changeQty,
               action: 'remove',
               reason: `Marketplace Order Checkout [${unitLabel || 'Standard'}]`

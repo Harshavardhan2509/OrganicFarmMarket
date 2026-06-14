@@ -29,9 +29,39 @@ export default function EditProductPage({
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadingImage(true)
+    const formData = new FormData()
+    formData.append('file', file)
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        setImage(data.url)
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to upload image')
+      }
+    } catch (err) {
+      console.error('Upload error:', err)
+      alert('An error occurred during file upload.')
+    } finally {
+      setUploadingImage(false)
+    }
+  }
 
   // Custom Category and Stock states
-  const [categories, setCategories] = useState<string[]>(Array.from(PRODUCT_CATEGORIES))
+  const [categories, setCategories] = useState<any[]>([])
   const [stockHistory, setStockHistory] = useState<any[]>([])
   const [showStockModal, setShowStockModal] = useState(false)
   const [stockAction, setStockAction] = useState<'add' | 'remove' | 'set' | 'damage'>('add')
@@ -62,7 +92,7 @@ export default function EditProductPage({
             const formatted = parsed.map(p => ({
               id: p.id,
               size: p.size,
-              price: p.price.toString(),
+              price: (p.basePrice !== undefined ? p.basePrice : p.price).toString(),
               quantity: p.quantity.toString()
             }))
             setUnitSizes(formatted)
@@ -70,12 +100,14 @@ export default function EditProductPage({
               setSelectedUnitSizeId(formatted[0].id)
             }
           } catch {
-            const defUnit = [{ id: 'default', size: '1 Unit', price: data.price.toString(), quantity: data.quantity.toString() }]
+            const basePriceVal = data.basePrice !== undefined ? data.basePrice : data.price
+            const defUnit = [{ id: 'default', size: '1 Unit', price: basePriceVal.toString(), quantity: data.quantity.toString() }]
             setUnitSizes(defUnit)
             setSelectedUnitSizeId('default')
           }
         } else {
-          const defUnit = [{ id: 'default', size: '1 Unit', price: data.price.toString(), quantity: data.quantity.toString() }]
+          const basePriceVal = data.basePrice !== undefined ? data.basePrice : data.price
+          const defUnit = [{ id: 'default', size: '1 Unit', price: basePriceVal.toString(), quantity: data.quantity.toString() }]
           setUnitSizes(defUnit)
           setSelectedUnitSizeId('default')
         }
@@ -95,7 +127,7 @@ export default function EditProductPage({
       const res = await fetch('/api/categories')
       if (res.ok) {
         const data = await res.json()
-        setCategories(data.map((c: any) => c.name))
+        setCategories(data)
       }
     } catch (err) {
       console.error(err)
@@ -273,8 +305,8 @@ export default function EditProductPage({
                     >
                       <option value="">Select a category</option>
                       {categories.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
+                        <option key={cat.id} value={cat.name}>
+                          {cat.name}
                         </option>
                       ))}
                     </select>
@@ -287,7 +319,14 @@ export default function EditProductPage({
                       Display Price (₹)
                     </label>
                     <div className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-400 bg-slate-50 font-bold leading-normal">
-                      ₹{unitSizes[0]?.price || '0.00'}
+                      ₹{(() => {
+                        const pVal = parseFloat(unitSizes[0]?.price || '0')
+                        const selectedCatObj = categories.find(c => c.name === category)
+                        const cgstRate = selectedCatObj ? selectedCatObj.cgst || 0 : 0
+                        const sgstRate = selectedCatObj ? selectedCatObj.sgst || 0 : 0
+                        const totalGstRate = cgstRate + sgstRate
+                        return isNaN(pVal) ? '0.00' : Math.round(pVal * (1 + totalGstRate / 100))
+                      })()}
                     </div>
                   </div>
 
@@ -330,18 +369,18 @@ export default function EditProductPage({
 
                   <div className="space-y-2">
                     {unitSizes.map((u) => (
-                      <div key={u.id} className="flex gap-2 items-center flex-wrap sm:flex-nowrap bg-slate-50/50 p-2 border border-slate-100 rounded-xl">
-                        <div className="flex-1 min-w-[120px]">
+                      <div key={u.id} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-slate-50/50 p-3 border border-slate-100 rounded-xl w-full">
+                        <div className="col-span-1 sm:col-span-6">
                           <input
                             type="text"
                             required
                             placeholder="Size (e.g. 100grm)"
                             value={u.size}
                             onChange={(e) => handleUnitSizeChange(u.id, 'size', e.target.value)}
-                            className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-950 outline-none focus:border-emerald-500 font-semibold"
+                            className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-955 outline-none focus:border-emerald-505 font-semibold"
                           />
                         </div>
-                        <div className="w-28">
+                        <div className="col-span-1 sm:col-span-3">
                           <input
                             type="number"
                             step="0.01"
@@ -350,10 +389,21 @@ export default function EditProductPage({
                             placeholder="Price (₹)"
                             value={u.price}
                             onChange={(e) => handleUnitSizeChange(u.id, 'price', e.target.value)}
-                            className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-950 outline-none focus:border-emerald-500 font-semibold"
+                            className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-955 outline-none focus:border-emerald-505 font-semibold"
                           />
+                          {(() => {
+                            const selectedCatObj = categories.find(c => c.name === category)
+                            const cgstRate = selectedCatObj ? selectedCatObj.cgst || 0 : 0
+                            const sgstRate = selectedCatObj ? selectedCatObj.sgst || 0 : 0
+                            const totalGstRate = cgstRate + sgstRate
+                            return u.price && !isNaN(parseFloat(u.price)) ? (
+                              <span className="text-[10px] text-emerald-650 font-bold block mt-1 leading-none">
+                                Final: ₹{Math.round(parseFloat(u.price) * (1 + totalGstRate / 100))} (Inc. GST)
+                              </span>
+                            ) : null
+                          })()}
                         </div>
-                        <div className="w-24">
+                        <div className="col-span-1 sm:col-span-2">
                           <input
                             type="number"
                             min="0"
@@ -361,17 +411,19 @@ export default function EditProductPage({
                             placeholder="Stock"
                             value={u.quantity}
                             onChange={(e) => handleUnitSizeChange(u.id, 'quantity', e.target.value)}
-                            className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-950 outline-none focus:border-emerald-500 font-semibold"
+                            className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-955 outline-none focus:border-emerald-505 font-semibold"
                           />
                         </div>
                         {unitSizes.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveUnitSize(u.id)}
-                            className="text-rose-600 hover:text-rose-700 font-bold text-xs px-2 py-1 hover:bg-rose-50 rounded-lg transition"
-                          >
-                            Delete
-                          </button>
+                          <div className="col-span-1 sm:col-span-1 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveUnitSize(u.id)}
+                              className="text-rose-650 hover:text-rose-700 font-bold text-xs px-2 py-1 hover:bg-rose-50 rounded-lg transition"
+                            >
+                              Delete
+                            </button>
+                          </div>
                         )}
                       </div>
                     ))}
@@ -391,17 +443,54 @@ export default function EditProductPage({
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider mb-2">
-                    Image URL
+                <div className="space-y-3">
+                  <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider">
+                    Product Image (Upload Local File)
                   </label>
-                  <input
-                    type="url"
-                    placeholder="https://example.com/moringa.jpg"
-                    value={image}
-                    onChange={(e) => setImage(e.target.value)}
-                    className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-950 outline-none transition focus:border-emerald-500 font-semibold"
-                  />
+                  
+                  <div className="flex flex-col sm:flex-row gap-4 items-center bg-slate-50/50 p-4 border border-slate-100 rounded-2xl">
+                    {/* Visual Image Preview */}
+                    <div className="w-24 h-24 bg-white border border-slate-150 rounded-xl flex items-center justify-center text-4xl overflow-hidden shrink-0 shadow-inner">
+                      {image ? (
+                        <img src={image} alt="Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        '🌱'
+                      )}
+                    </div>
+                    
+                    <div className="flex-1 w-full space-y-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        id="product-image-file"
+                        className="hidden"
+                        onChange={handleImageUpload}
+                        disabled={uploadingImage}
+                      />
+                      <label
+                        htmlFor="product-image-file"
+                        className="inline-flex items-center justify-center px-4 py-2.5 bg-emerald-50 border border-emerald-100 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold cursor-pointer transition select-none disabled:opacity-50"
+                      >
+                        {uploadingImage ? 'Uploading Image...' : '📁 Choose File from Local Storage'}
+                      </label>
+                      <p className="text-xxs text-slate-400 font-medium">
+                        Upload PNG, JPG, or WEBP. Max size 5MB.
+                      </p>
+                      
+                      {image && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xxs font-mono text-slate-450 truncate max-w-[200px]">{image}</span>
+                          <button
+                            type="button"
+                            onClick={() => setImage('')}
+                            className="text-xxs text-rose-600 hover:text-rose-700 font-bold transition"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="pt-4 border-t border-slate-50 flex justify-end gap-3">

@@ -9,7 +9,7 @@ export async function PUT(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session || !['farmer', 'salesperson'].includes((session.user as any).role)) {
+    if (!session || (session.user as any).role !== 'farmer') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -52,7 +52,7 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session || !['farmer', 'salesperson'].includes((session.user as any).role)) {
+    if (!session || (session.user as any).role !== 'farmer') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

@@ -50,6 +50,7 @@ model Product {
   farmerId      String
   farmer        User       @relation(fields: [farmerId], references: [id], onDelete: Cascade)
   unitSizes     String?
+  isDeleted     Boolean    @default(false)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -180,6 +181,8 @@ model Sale {
 model Category {
   id        String   @id @default(cuid())
   name      String   @unique
+  cgst      Float    @default(0.0)
+  sgst      Float    @default(0.0)
   createdAt DateTime @default(now())
 }
 
