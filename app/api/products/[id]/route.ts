@@ -58,11 +58,11 @@ export async function PUT(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session || !session.user?.email || (session.user as any).role !== 'farmer') {
+    if (!session || !(session.user as any).id || (session.user as any).role !== 'farmer') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { name, description, price, quantity, category, image, stockUpdate } = await request.json()
+    const { name, description, price, category, image, unitSizes, stockUpdate } = await request.json()
 
     const product = await prisma.product.findUnique({
       where: { id: params.id }
@@ -73,7 +73,7 @@ export async function PUT(
     }
 
     const farmer = await prisma.user.findUnique({
-      where: { email: session.user.email! }
+      where: { id: (session.user as any).id }
     })
 
     if (!farmer || product.farmerId !== farmer.id) {
@@ -81,47 +81,87 @@ export async function PUT(
     }
 
     let finalQuantity = product.quantity
+    let finalPrice = product.price
+    let finalUnitSizes = product.unitSizes
     let historyCreated = false
     let historyRecord: any = null
 
     if (stockUpdate) {
-      const { action, value, reason } = stockUpdate
+      const { action, value, reason, unitSizeId } = stockUpdate
       if (action && value !== undefined) {
         const valNum = parseInt(value)
         if (!isNaN(valNum) && valNum >= 0) {
-          const oldQuantity = product.quantity
-          let newQuantity = oldQuantity
-          if (action === 'add') {
-            newQuantity = oldQuantity + valNum
-          } else if (action === 'remove') {
-            newQuantity = Math.max(0, oldQuantity - valNum)
-          } else if (action === 'set') {
-            newQuantity = valNum
-          }
+          if (product.unitSizes) {
+            // Product has multiple unit sizes
+            const sizes = JSON.parse(product.unitSizes) as Array<{ id: string; size: string; price: number; quantity: number }>
+            const sizeObj = sizes.find(s => s.id === unitSizeId)
+            if (!sizeObj) {
+              return NextResponse.json({ error: 'Selected unit size not found' }, { status: 400 })
+            }
 
-          finalQuantity = newQuantity
-          
-          historyRecord = {
-            oldQuantity,
-            newQuantity,
-            change: newQuantity - oldQuantity,
-            action,
-            reason: reason?.trim() || 'Manual stock update'
+            const oldQty = sizeObj.quantity
+            let newQty = oldQty
+            if (action === 'add') {
+              newQty = oldQty + valNum
+            } else if (action === 'remove' || action === 'damage') {
+              newQty = Math.max(0, oldQty - valNum)
+            } else if (action === 'set') {
+              newQty = valNum
+            }
+
+            sizeObj.quantity = newQty
+            finalUnitSizes = JSON.stringify(sizes)
+            finalQuantity = sizes.reduce((sum, s) => sum + s.quantity, 0)
+            finalPrice = sizes[0].price // price is first size's price
+
+            historyRecord = {
+              oldQuantity: product.quantity,
+              newQuantity: finalQuantity,
+              change: newQty - oldQty,
+              action,
+              reason: `[Size: ${sizeObj.size}] ${reason?.trim() || 'Manual stock update'}`
+            }
+            historyCreated = true
+          } else {
+            // Standard product
+            const oldQuantity = product.quantity
+            let newQuantity = oldQuantity
+            if (action === 'add') {
+              newQuantity = oldQuantity + valNum
+            } else if (action === 'remove' || action === 'damage') {
+              newQuantity = Math.max(0, oldQuantity - valNum)
+            } else if (action === 'set') {
+              newQuantity = valNum
+            }
+
+            finalQuantity = newQuantity
+            historyRecord = {
+              oldQuantity,
+              newQuantity: newQuantity,
+              change: newQuantity - oldQuantity,
+              action,
+              reason: reason?.trim() || 'Manual stock update'
+            }
+            historyCreated = true
           }
-          historyCreated = true
         }
       }
-    } else if (quantity !== undefined) {
+    } else if (unitSizes !== undefined) {
+      // Product details edit with unit sizes
+      const parsedSizes = JSON.parse(unitSizes) as Array<{ id: string; size: string; price: number; quantity: number }>
+      finalUnitSizes = unitSizes
+      finalPrice = parsedSizes[0].price
+      const totalQty = parsedSizes.reduce((sum, s) => sum + s.quantity, 0)
+      
       const oldQuantity = product.quantity
-      const newQuantity = parseInt(quantity)
-      if (oldQuantity !== newQuantity) {
-        finalQuantity = newQuantity
+      if (oldQuantity !== totalQty) {
+        finalQuantity = totalQty
         historyRecord = {
           oldQuantity,
-          newQuantity,
-          change: newQuantity - oldQuantity,
+          newQuantity: totalQty,
+          change: totalQty - oldQuantity,
           action: 'set',
-          reason: 'Manual edit'
+          reason: 'Manual edit of unit size stock levels'
         }
         historyCreated = true
       }
@@ -132,8 +172,9 @@ export async function PUT(
       data: {
         name: name?.trim() || product.name,
         description: description?.trim() || product.description,
-        price: price !== undefined ? parseFloat(price) : product.price,
+        price: price !== undefined ? parseFloat(price) : finalPrice,
         quantity: finalQuantity,
+        unitSizes: finalUnitSizes,
         category: category || product.category,
         image: image || product.image
       }
@@ -149,9 +190,9 @@ export async function PUT(
     }
 
     return NextResponse.json(updatedProduct)
-  } catch (error) {
+  } catch (error: any) {
     console.error('Product detail PUT error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -161,7 +202,7 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session || !session.user?.email || (session.user as any).role !== 'farmer') {
+    if (!session || !(session.user as any).id || (session.user as any).role !== 'farmer') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -174,7 +215,7 @@ export async function DELETE(
     }
 
     const farmer = await prisma.user.findUnique({
-      where: { email: session.user.email! }
+      where: { id: (session.user as any).id }
     })
 
     if (!farmer || product.farmerId !== farmer.id) {

@@ -1,5 +1,5 @@
 // Configuration constants
-export const APP_NAME = 'Organic Farm Marketplace'
+export const APP_NAME = 'Sasya Khetr'
 export const APP_URL = process.env.NEXTAUTH_URL || 'http://localhost:3000'
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
 

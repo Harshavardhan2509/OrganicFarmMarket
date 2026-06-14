@@ -70,7 +70,7 @@ export default function CustomerProfilePage() {
   }
 
   return (
-    <ProtectedRoute allowedRoles={['customer']}>
+    <ProtectedRoute allowedRoles={['customer', 'salesperson']}>
       <Navbar />
       <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8 flex-1">
         <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-8">My Profile</h1>

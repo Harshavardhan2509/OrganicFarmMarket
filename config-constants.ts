@@ -1,6 +1,6 @@
 // config/constants.ts
 
-export const APP_NAME = 'Organic Farm Marketplace';
+export const APP_NAME = 'Sasya Khetr';
 
 // Role-based routes
 export const CUSTOMER_ROUTES = {

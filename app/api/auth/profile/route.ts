@@ -8,12 +8,12 @@ import prisma from '@/lib/db'
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session || !session.user?.email) {
+    if (!session || !(session.user as any).id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email }
+      where: { id: (session.user as any).id }
     })
 
     if (!user) {
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session || !session.user?.email) {
+    if (!session || !(session.user as any).id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -42,7 +42,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const updatedUser = await prisma.user.update({
-      where: { email: session.user.email },
+      where: { id: (session.user as any).id },
       data: {
         name: name.trim(),
         phone: phone || null,

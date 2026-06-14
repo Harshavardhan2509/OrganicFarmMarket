@@ -17,12 +17,15 @@ interface Product {
   quantity: number
   category: string
   farmerId: string
+  unitSizes?: string | null
 }
 
 export default function InventoryPage() {
   const { data: session } = useSession()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+
+  const isSalesperson = session?.user && (session.user as any).role === 'salesperson'
 
   // Category management states
   const [categories, setCategories] = useState<any[]>([])
@@ -36,11 +39,17 @@ export default function InventoryPage() {
       const res = await fetch('/api/products')
       if (res.ok) {
         const allProducts = await res.json()
-        // Filter products created by this farmer
-        const farmerProducts = allProducts.filter(
-          (p: Product) => p.farmerId === (session.user as any).id
-        )
-        setProducts(farmerProducts)
+        const userRole = (session.user as any).role
+        if (userRole === 'farmer') {
+          // Filter products created by this farmer
+          const farmerProducts = allProducts.filter(
+            (p: Product) => p.farmerId === (session.user as any).id
+          )
+          setProducts(farmerProducts)
+        } else {
+          // Salesperson views all products in the system
+          setProducts(allProducts)
+        }
       }
     } catch (err) {
       console.error('Failed to load inventory:', err)
@@ -67,6 +76,7 @@ export default function InventoryPage() {
   }, [session])
 
   const handleDelete = async (productId: string, productName: string) => {
+    if (isSalesperson) return
     if (!window.confirm(`Are you sure you want to delete ${productName} from your inventory?`)) return
     try {
       const res = await fetch(`/api/products/${productId}`, {
@@ -85,6 +95,7 @@ export default function InventoryPage() {
 
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSalesperson) return
     setCategoryError(null)
     if (!newCategoryName.trim()) return
 
@@ -108,6 +119,7 @@ export default function InventoryPage() {
   }
 
   const handleDeleteCategory = async (id: string, name: string) => {
+    if (isSalesperson) return
     if (name.toLowerCase() === 'other') {
       alert('Cannot delete the "Other" category')
       return
@@ -132,7 +144,7 @@ export default function InventoryPage() {
   }
 
   return (
-    <ProtectedRoute allowedRoles={['farmer']}>
+    <ProtectedRoute allowedRoles={['farmer', 'salesperson']}>
       <Navbar />
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 flex-1">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
@@ -140,22 +152,24 @@ export default function InventoryPage() {
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Manage Inventory</h1>
             <p className="text-sm text-slate-500 font-medium">Keep track of stock levels, category listings, and unit prices</p>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                setCategoryError(null)
-                setShowCategoryModal(true)
-              }}
-              className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg font-bold transition shadow-sm active:scale-[0.98]"
-            >
-              📂 Manage Categories
-            </button>
-            <Link href="/farmer/dashboard/inventory/new">
-              <button className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold transition shadow-md shadow-emerald-600/10 hover:shadow active:scale-[0.98]">
-                ➕ Add New Product
+          {!isSalesperson && (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  setCategoryError(null)
+                  setShowCategoryModal(true)
+                }}
+                className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg font-bold transition shadow-sm active:scale-[0.98]"
+              >
+                📂 Manage Categories
               </button>
-            </Link>
-          </div>
+              <Link href="/farmer/dashboard/inventory/new">
+                <button className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold transition shadow-md shadow-emerald-600/10 hover:shadow active:scale-[0.98]">
+                  ➕ Add New Product
+                </button>
+              </Link>
+            </div>
+          )}
         </div>
 
         {loading ? (
@@ -169,15 +183,17 @@ export default function InventoryPage() {
             <p className="text-sm text-slate-500 mt-1 mb-6 px-4">
               Add your organic vegetables, fresh fruits, grains, or dairy to start receiving orders!
             </p>
-            <Link href="/farmer/dashboard/inventory/new">
-              <button className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold transition shadow-md shadow-emerald-600/10 hover:shadow">
-                Create First Product
-              </button>
-            </Link>
+            {!isSalesperson && (
+              <Link href="/farmer/dashboard/inventory/new">
+                <button className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold transition shadow-md shadow-emerald-600/10 hover:shadow">
+                  Create First Product
+                </button>
+              </Link>
+            )}
           </div>
         ) : (
           <Card hoverEffect={false} className="bg-white border border-slate-100 shadow-md p-6">
-            <Table headers={['Product Details', 'Category', 'Unit Price', 'Stock Level', 'Actions']}>
+            <Table headers={isSalesperson ? ['Product Details', 'Category', 'Unit Price', 'Stock Level'] : ['Product Details', 'Category', 'Unit Price', 'Stock Level', 'Actions']}>
               {products.map((prod) => (
                 <tr key={prod.id} className="hover:bg-slate-50/50 transition">
                   <td className="px-6 py-4">
@@ -207,34 +223,67 @@ export default function InventoryPage() {
                     ₹{prod.price.toFixed(2)}
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm font-black ${prod.quantity === 0 ? 'text-rose-600' : prod.quantity <= 5 ? 'text-amber-600' : 'text-slate-900'}`}>
-                        {prod.quantity}
-                      </span>
-                      {prod.quantity === 0 ? (
-                        <Badge variant="danger" className="text-xxs">Out of Stock</Badge>
-                      ) : prod.quantity <= 5 ? (
-                        <Badge variant="warning" className="text-xxs">Low Stock</Badge>
-                      ) : (
-                        <Badge variant="success" className="text-xxs">Available</Badge>
-                      )}
-                    </div>
+                    {(() => {
+                      let sizes: any[] = []
+                      if (prod.unitSizes) {
+                        try {
+                          sizes = JSON.parse(prod.unitSizes)
+                        } catch {}
+                      }
+                      if (sizes && sizes.length > 0) {
+                        return (
+                          <div className="space-y-1.5 text-xs font-semibold">
+                            {sizes.map((s: any) => (
+                              <div key={s.id} className="flex items-center gap-1.5">
+                                <span className="text-slate-500 font-bold">{s.size}:</span>
+                                <span className={`font-black ${s.quantity === 0 ? 'text-rose-600' : s.quantity <= 5 ? 'text-amber-600' : 'text-slate-900'}`}>
+                                  {s.quantity}
+                                </span>
+                                {s.quantity === 0 ? (
+                                  <Badge variant="danger" className="text-[9px] px-1 py-0 font-extrabold uppercase">Out</Badge>
+                                ) : s.quantity <= 5 ? (
+                                  <Badge variant="warning" className="text-[9px] px-1 py-0 font-extrabold uppercase">Low</Badge>
+                                ) : (
+                                  <Badge variant="success" className="text-[9px] px-1 py-0 font-extrabold uppercase">OK</Badge>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      }
+                      return (
+                        <div className="flex items-center gap-2">
+                          <span className={`text-sm font-black ${prod.quantity === 0 ? 'text-rose-600' : prod.quantity <= 5 ? 'text-amber-600' : 'text-slate-900'}`}>
+                            {prod.quantity}
+                          </span>
+                          {prod.quantity === 0 ? (
+                            <Badge variant="danger" className="text-xxs">Out of Stock</Badge>
+                          ) : prod.quantity <= 5 ? (
+                            <Badge variant="warning" className="text-xxs">Low Stock</Badge>
+                          ) : (
+                            <Badge variant="success" className="text-xxs">Available</Badge>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <Link href={`/farmer/dashboard/inventory/${prod.id}`}>
-                        <button className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition">
-                          Edit
+                  {!isSalesperson && (
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <Link href={`/farmer/dashboard/inventory/${prod.id}`}>
+                          <button className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition">
+                            Edit
+                          </button>
+                        </Link>
+                        <button
+                          onClick={() => handleDelete(prod.id, prod.name)}
+                          className="text-xs font-bold text-rose-600 hover:text-rose-700 transition"
+                        >
+                          Delete
                         </button>
-                      </Link>
-                      <button
-                        onClick={() => handleDelete(prod.id, prod.name)}
-                        className="text-xs font-bold text-rose-600 hover:text-rose-700 transition"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </Table>
@@ -242,7 +291,7 @@ export default function InventoryPage() {
         )}
 
         {/* Category Management Modal */}
-        {showCategoryModal && (
+        {showCategoryModal && !isSalesperson && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150">
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -325,4 +374,3 @@ export default function InventoryPage() {
     </ProtectedRoute>
   )
 }
-

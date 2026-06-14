@@ -14,12 +14,14 @@ interface CartItem {
   id: string
   productId: string
   quantity: number
+  unitSize: string | null
   product: {
     id: string
     name: string
     price: number
     category: string
     quantity: number // Stock
+    unitSizes?: string
   }
 }
 
@@ -29,15 +31,81 @@ interface Cart {
 }
 
 export default function CartPage() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const [cart, setCart] = useState<Cart | null>(null)
   const [loading, setLoading] = useState(true)
   const [shippingAddress, setShippingAddress] = useState('')
   const [phone, setPhone] = useState('')
+  const [guestName, setGuestName] = useState('')
   const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [orderCompleted, setOrderCompleted] = useState<any>(null)
+  const [selectedApartment, setSelectedApartment] = useState('')
+  const [apartments, setApartments] = useState<any[]>([])
+
+  const getItemPrice = (item: CartItem) => {
+    if (item.unitSize && item.product.unitSizes) {
+      try {
+        const sizes = JSON.parse(item.product.unitSizes) as Array<{ id: string; size: string; price: number; quantity: number }>
+        const sizeObj = sizes.find(s => s.size === item.unitSize)
+        if (sizeObj) return sizeObj.price
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    return item.product.price
+  }
+
+  const getItemMaxStock = (item: CartItem) => {
+    if (item.unitSize && item.product.unitSizes) {
+      try {
+        const sizes = JSON.parse(item.product.unitSizes) as Array<{ id: string; size: string; price: number; quantity: number }>
+        const sizeObj = sizes.find(s => s.size === item.unitSize)
+        if (sizeObj) return sizeObj.quantity
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    return item.product.quantity
+  }
 
   const fetchCart = async () => {
+    if (status === 'unauthenticated') {
+      setLoading(true)
+      try {
+        const stored = localStorage.getItem('guestCart')
+        const items = stored ? JSON.parse(stored) : []
+        const prodRes = await fetch('/api/products')
+        if (prodRes.ok) {
+          const allProds = await prodRes.json() as any[]
+          const mappedItems = items.map((item: any, index: number) => {
+            const prod = allProds.find(p => p.id === item.productId)
+            return {
+              id: `guest-${index}`,
+              productId: item.productId,
+              quantity: item.quantity,
+              unitSize: item.unitSize,
+              product: prod || {
+                id: item.productId,
+                name: 'Unknown Produce',
+                price: 0,
+                category: 'Grains',
+                quantity: 0
+              }
+            }
+          })
+          setCart({
+            id: 'guest-cart',
+            items: mappedItems
+          })
+        }
+      } catch (err) {
+        console.error('Guest cart mapping failed:', err)
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
     try {
       const res = await fetch('/api/cart')
       if (res.ok) {
@@ -51,7 +119,6 @@ export default function CartPage() {
     }
   }
 
-  // Pre-fill shipping address and phone number from profile
   const fetchProfile = async () => {
     try {
       const res = await fetch('/api/auth/profile')
@@ -70,17 +137,60 @@ export default function CartPage() {
   }
 
   useEffect(() => {
-    fetchCart()
-    fetchProfile()
+    if (status !== 'loading') {
+      fetchCart()
+    }
+  }, [status])
+
+  useEffect(() => {
+    if (status === 'authenticated') {
+      fetchProfile()
+    }
+  }, [status])
+
+  useEffect(() => {
+    const fetchApartments = async () => {
+      try {
+        const res = await fetch('/api/stalls')
+        if (res.ok) {
+          const data = await res.json()
+          setApartments(data)
+          if (data.length > 0) {
+            setSelectedApartment(data[0].name)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load apartments:', err)
+      }
+    }
+    fetchApartments()
   }, [])
 
-  const handleUpdateQuantity = async (productId: string, newQuantity: number) => {
+  const handleUpdateQuantity = async (productId: string, unitSize: string | null, newQuantity: number) => {
     if (newQuantity < 0) return
+    if (status === 'unauthenticated') {
+      const stored = localStorage.getItem('guestCart')
+      let items = stored ? JSON.parse(stored) : []
+      if (newQuantity === 0) {
+        items = items.filter((item: any) => !(item.productId === productId && item.unitSize === unitSize))
+      } else {
+        items = items.map((item: any) => {
+          if (item.productId === productId && item.unitSize === unitSize) {
+            return { ...item, quantity: newQuantity }
+          }
+          return item
+        })
+      }
+      localStorage.setItem('guestCart', JSON.stringify(items))
+      fetchCart()
+      return
+    }
+
     try {
       const res = await fetch('/api/cart', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId, quantity: newQuantity }),
+        body: JSON.stringify({ productId, quantity: newQuantity, unitSize }),
       })
 
       if (res.ok) {
@@ -94,12 +204,21 @@ export default function CartPage() {
     }
   }
 
-  const handleRemoveItem = async (productId: string) => {
+  const handleRemoveItem = async (productId: string, unitSize: string | null) => {
+    if (status === 'unauthenticated') {
+      const stored = localStorage.getItem('guestCart')
+      let items = stored ? JSON.parse(stored) : []
+      items = items.filter((item: any) => !(item.productId === productId && item.unitSize === unitSize))
+      localStorage.setItem('guestCart', JSON.stringify(items))
+      fetchCart()
+      return
+    }
+
     try {
       const res = await fetch('/api/cart', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId }),
+        body: JSON.stringify({ productId, unitSize }),
       })
 
       if (res.ok) {
@@ -112,6 +231,12 @@ export default function CartPage() {
 
   const handleClearCart = async () => {
     if (!window.confirm('Are you sure you want to empty your shopping cart?')) return
+    if (status === 'unauthenticated') {
+      localStorage.removeItem('guestCart')
+      setCart({ id: 'guest-cart', items: [] })
+      return
+    }
+
     try {
       const res = await fetch('/api/cart', {
         method: 'DELETE',
@@ -129,6 +254,12 @@ export default function CartPage() {
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (status === 'unauthenticated') {
+      if (!guestName.trim()) {
+        alert('Please enter your name to complete your checkout!')
+        return
+      }
+    }
     if (!shippingAddress.trim()) {
       alert('Please enter a delivery address to complete your checkout!')
       return
@@ -140,16 +271,38 @@ export default function CartPage() {
 
     setCheckoutLoading(true)
     try {
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shippingAddress, phone }),
-      })
+      let res
+      if (status === 'unauthenticated') {
+        res = await fetch('/api/orders/guest-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: guestName,
+            phone,
+            shippingAddress,
+            stallName: selectedApartment,
+            items: cart?.items.map(item => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              unitSize: item.unitSize
+            }))
+          }),
+        })
+      } else {
+        res = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ shippingAddress, phone, stallName: selectedApartment }),
+        })
+      }
 
       const data = await res.json()
 
       if (res.ok) {
         setOrderCompleted(data)
+        if (status === 'unauthenticated') {
+          localStorage.removeItem('guestCart')
+        }
         setCart(null)
       } else {
         alert(data.error || 'Checkout failed. Please verify item quantities.')
@@ -162,14 +315,14 @@ export default function CartPage() {
   }
 
   // Calculation summaries in INR
-  const subtotal = cart?.items.reduce((sum, item) => sum + item.product.price * item.quantity, 0) || 0
+  const subtotal = cart?.items.reduce((sum, item) => sum + getItemPrice(item) * item.quantity, 0) || 0
   const shippingFee = subtotal > 0 ? 30.0 : 0.0 // Adjusted for INR scale
   const estimatedTax = subtotal * 0.08
   const grandTotal = subtotal + shippingFee + estimatedTax
 
   if (orderCompleted) {
     return (
-      <ProtectedRoute allowedRoles={['customer']}>
+      <ProtectedRoute allowedRoles={['customer', 'farmer', 'salesperson']} allowGuest>
         <Navbar />
         <main className="mx-auto max-w-2xl px-4 py-16 sm:px-6 lg:px-8 text-center">
           <div className="rounded-3xl bg-white p-8 border border-slate-100 shadow-lg text-center space-y-6">
@@ -196,6 +349,12 @@ export default function CartPage() {
                 <span>Shipping Destination:</span>
                 <span className="font-medium text-slate-950 text-right line-clamp-1">{orderCompleted.shippingAddress}</span>
               </div>
+              {orderCompleted.stallName && (
+                <div className="flex justify-between text-slate-500">
+                  <span>Selected Apartment:</span>
+                  <span className="font-black text-slate-900">{orderCompleted.stallName}</span>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-4 justify-center pt-4 flex-wrap">
@@ -204,7 +363,7 @@ export default function CartPage() {
                 onClick={() => printInvoice({
                   ...orderCompleted,
                   user: {
-                    name: session?.user?.name || 'Customer',
+                    name: session?.user?.name || guestName || 'Customer',
                     email: session?.user?.email || 'N/A',
                     phone: phone
                   }
@@ -215,9 +374,11 @@ export default function CartPage() {
               <Link href="/customer/dashboard">
                 <Button variant="outline">Continue Shopping</Button>
               </Link>
-              <Link href="/customer/dashboard/orders">
-                <Button>Track My Orders</Button>
-              </Link>
+              {status !== 'unauthenticated' && (
+                <Link href="/customer/dashboard/orders">
+                  <Button>Track My Orders</Button>
+                </Link>
+              )}
             </div>
           </div>
         </main>
@@ -226,7 +387,7 @@ export default function CartPage() {
   }
 
   return (
-    <ProtectedRoute allowedRoles={['customer']}>
+    <ProtectedRoute allowedRoles={['customer', 'farmer', 'salesperson']} allowGuest>
       <Navbar />
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 flex-1">
         <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-8">Your Shopping Cart</h1>
@@ -243,7 +404,7 @@ export default function CartPage() {
               You haven't added any fresh produce to your cart yet.
             </p>
             <Link href="/customer/dashboard">
-              <Button>Browse Marketplace</Button>
+              <Button>Browse Home</Button>
             </Link>
           </div>
         ) : (
@@ -281,10 +442,10 @@ export default function CartPage() {
                         {item.product.category}
                       </span>
                       <h3 className="text-sm font-bold text-slate-900 leading-tight">
-                        {item.product.name}
+                        {item.product.name} {item.unitSize ? `(${item.unitSize})` : ''}
                       </h3>
                       <span className="text-xs font-extrabold text-slate-500 block mt-0.5">
-                        ₹{item.product.price.toFixed(2)} / unit
+                        ₹{getItemPrice(item).toFixed(2)} / unit
                       </span>
                     </div>
                   </div>
@@ -293,7 +454,7 @@ export default function CartPage() {
                   <div className="flex items-center justify-between sm:justify-end gap-6">
                     <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
                       <button
-                        onClick={() => handleUpdateQuantity(item.productId, item.quantity - 1)}
+                        onClick={() => handleUpdateQuantity(item.productId, item.unitSize, item.quantity - 1)}
                         className="px-3 py-1.5 hover:bg-slate-200 transition font-bold text-slate-650"
                       >
                         -
@@ -302,9 +463,9 @@ export default function CartPage() {
                         {item.quantity}
                       </span>
                       <button
-                        onClick={() => handleUpdateQuantity(item.productId, item.quantity + 1)}
+                        onClick={() => handleUpdateQuantity(item.productId, item.unitSize, item.quantity + 1)}
                         className="px-3 py-1.5 hover:bg-slate-200 transition font-bold text-slate-650"
-                        disabled={item.quantity >= item.product.quantity}
+                        disabled={item.quantity >= getItemMaxStock(item)}
                       >
                         +
                       </button>
@@ -313,12 +474,12 @@ export default function CartPage() {
                     <div className="text-right min-w-[70px]">
                       <span className="text-xs uppercase tracking-wider font-extrabold text-slate-400 block leading-none">Total</span>
                       <span className="text-sm font-bold text-slate-950">
-                        ₹{(item.product.price * item.quantity).toFixed(2)}
+                        ₹{(getItemPrice(item) * item.quantity).toFixed(2)}
                       </span>
                     </div>
 
                     <button
-                      onClick={() => handleRemoveItem(item.productId)}
+                      onClick={() => handleRemoveItem(item.productId, item.unitSize)}
                       className="text-slate-400 hover:text-rose-600 p-1.5 rounded-md hover:bg-rose-50 transition"
                       title="Remove product"
                     >
@@ -342,7 +503,7 @@ export default function CartPage() {
                     <span className="text-slate-950">₹{subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Local Handling Fee</span>
+                    <span>Delivery Charges</span>
                     <span className="text-slate-950">₹{shippingFee.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
@@ -357,22 +518,71 @@ export default function CartPage() {
 
                 {/* Shipping address & mobile number form */}
                 <form onSubmit={handleCheckout} className="space-y-4 pt-4 border-t border-slate-50">
-                  <Input
-                    label="Delivery Address"
-                    required
-                    placeholder="Enter your shipping address"
-                    value={shippingAddress}
-                    onChange={(e) => setShippingAddress(e.target.value)}
-                  />
+                  {status === 'unauthenticated' && (
+                    <div className="space-y-1">
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        Your Full Name <span className="text-rose-500 font-bold ml-1">^</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Enter your name"
+                        value={guestName}
+                        onChange={(e) => setGuestName(e.target.value)}
+                        className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-950 outline-none transition focus:border-emerald-500 font-semibold"
+                      />
+                    </div>
+                  )}
 
-                  <Input
-                    label="Mobile Number (Mandatory)"
-                    required
-                    type="tel"
-                    placeholder="e.g., +91 98765 43210"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                  />
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      Delivery Address <span className="text-rose-500 font-bold ml-1">^</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter your shipping address"
+                      value={shippingAddress}
+                      onChange={(e) => setShippingAddress(e.target.value)}
+                      className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-950 outline-none transition focus:border-emerald-500 font-semibold"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      Select Apartment <span className="text-rose-500 font-bold ml-1">^</span>
+                    </label>
+                    <select
+                      required
+                      value={selectedApartment}
+                      onChange={(e) => setSelectedApartment(e.target.value)}
+                      className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-950 outline-none transition focus:border-emerald-500 font-semibold bg-white"
+                    >
+                      <option value="" disabled>Select Apartment</option>
+                      {apartments.map((apt: any) => (
+                        <option key={apt.id} value={apt.name}>
+                          {apt.name}
+                        </option>
+                      ))}
+                      {apartments.length === 0 && (
+                        <option value="" disabled>No Apartments Defined</option>
+                      )}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      Mobile Number <span className="text-rose-500 font-bold ml-1">^</span>
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="e.g. 9876543210"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-950 outline-none transition focus:border-emerald-500 font-semibold"
+                    />
+                  </div>
 
                   <Button
                     type="submit"

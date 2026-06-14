@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session || !session.user?.email || (session.user as any).role !== 'farmer') {
+    if (!session || !(session.user as any).id || (session.user as any).role !== 'farmer') {
       return NextResponse.json({ error: 'Unauthorized. Farmers only.' }, { status: 401 })
     }
 
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session || !session.user?.email || (session.user as any).role !== 'farmer') {
+    if (!session || !(session.user as any).id || (session.user as any).role !== 'farmer') {
       return NextResponse.json({ error: 'Unauthorized. Farmers only.' }, { status: 401 })
     }
 

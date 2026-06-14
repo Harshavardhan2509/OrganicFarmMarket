@@ -11,7 +11,7 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session || !session.user?.email) {
+    if (!session || !(session.user as any).id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -104,6 +104,15 @@ export async function PUT(
       where: { id: params.id },
       data: { status }
     })
+
+    if (status === 'shipped') {
+      await prisma.notification.create({
+        data: {
+          userId: order.userId,
+          message: `Your order ${order.id} has been shipped! Delivery is on its way.`
+        }
+      })
+    }
 
     return NextResponse.json(updatedOrder)
   } catch (error) {

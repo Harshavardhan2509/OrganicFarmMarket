@@ -26,6 +26,7 @@ interface Order {
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled'
   paymentStatus: string
   shippingAddress: string
+  stallName?: string | null
   createdAt: string
   items: OrderItem[]
   user?: {
@@ -188,7 +189,7 @@ export default function CustomerOrdersPage() {
   }
 
   return (
-    <ProtectedRoute allowedRoles={['customer']}>
+    <ProtectedRoute allowedRoles={['customer', 'salesperson']}>
       <Navbar />
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8 flex-1">
         <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-8">My Orders</h1>
@@ -202,7 +203,7 @@ export default function CustomerOrdersPage() {
             <span className="text-5xl block mb-4">📋</span>
             <h3 className="text-lg font-bold text-slate-900">No Orders Found</h3>
             <p className="text-sm text-slate-500 mt-1 mb-6 px-4">
-              You haven't placed any orders yet. Visit our marketplace to find fresh organic harvests!
+              You haven't placed any orders yet. Visit Home to find fresh organic harvests!
             </p>
             <Link href="/customer/dashboard">
               <button className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold transition shadow-md shadow-emerald-600/10">
@@ -237,6 +238,14 @@ export default function CustomerOrdersPage() {
                         {order.shippingAddress}
                       </span>
                     </div>
+                    {order.stallName && (
+                      <div>
+                        <span className="text-xxs uppercase tracking-wider font-extrabold text-slate-400 block leading-none">Apartment / Stall</span>
+                        <span className="text-xs font-semibold text-slate-700">
+                          {order.stallName}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-3 flex-wrap">
@@ -288,7 +297,7 @@ export default function CustomerOrdersPage() {
                               onClick={() => handleOpenReviewModal(item.productId, item.product.name)}
                               className="text-xxs font-extrabold text-amber-600 hover:text-amber-705 transition flex items-center gap-1 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-105/50 mt-1"
                             >
-                              ⭐ Review Produce
+                              ⭐ Review Product
                             </button>
                           </div>
                         </div>

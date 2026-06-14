@@ -61,10 +61,10 @@ export default function CustomerBillingPage() {
   }, [])
 
   return (
-    <ProtectedRoute allowedRoles={['customer']}>
+    <ProtectedRoute allowedRoles={['customer', 'salesperson']}>
       <Navbar />
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 flex-1">
-        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-8">Billing Logs & Receipts</h1>
+        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-8">Payment History</h1>
 
         {loading ? (
           <div className="flex h-64 items-center justify-center">
@@ -73,15 +73,15 @@ export default function CustomerBillingPage() {
         ) : billingLogs.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-3xl border border-slate-100 shadow-sm max-w-md mx-auto">
             <span className="text-5xl block mb-4">💰</span>
-            <h3 className="text-lg font-bold text-slate-900">No Billing Records</h3>
+            <h3 className="text-lg font-bold text-slate-900">No Payment Records</h3>
             <p className="text-sm text-slate-500 mt-1 px-4">
-              Your billing logs will appear here once you place your first order.
+              Your payment history logs will appear here once you place your first order.
             </p>
           </div>
         ) : (
           <div className="space-y-6">
             <Card hoverEffect={false} className="bg-white border border-slate-100 shadow-md p-6">
-              <h3 className="text-base font-extrabold text-slate-950 mb-4">Transaction Ledger</h3>
+              <h3 className="text-base font-extrabold text-slate-950 mb-4">Payment History</h3>
               
               <Table headers={['Transaction Ref', 'Order ID', 'Method', 'Date', 'Value Charged', 'Status']}>
                 {billingLogs.map((log) => (

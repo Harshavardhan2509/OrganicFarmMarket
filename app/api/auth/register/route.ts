@@ -4,13 +4,16 @@ import prisma from '@/lib/db'
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, name, role, phone, address } = await request.json()
+    const { name, email, password, role, phone, address } = await request.json()
 
-    if (!email || !password || !name) {
-      return NextResponse.json(
-        { error: 'Email, password, and name are required' },
-        { status: 400 }
-      )
+    if (!name || !name.trim()) {
+      return NextResponse.json({ error: 'Name is mandatory' }, { status: 400 })
+    }
+    if (!email || !email.trim()) {
+      return NextResponse.json({ error: 'Email is mandatory' }, { status: 400 })
+    }
+    if (!password || !password.trim()) {
+      return NextResponse.json({ error: 'Password is mandatory' }, { status: 400 })
     }
 
     if (password.length < 6) {
@@ -21,31 +24,44 @@ export async function POST(request: NextRequest) {
     }
 
     const normalizedEmail = email.toLowerCase().trim()
-    const existingUser = await prisma.user.findUnique({
+    const existingEmail = await prisma.user.findUnique({
       where: { email: normalizedEmail }
     })
 
-    if (existingUser) {
+    if (existingEmail) {
       return NextResponse.json(
         { error: 'A user with this email already exists' },
         { status: 400 }
       )
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10)
+    if (!phone || !phone.trim()) {
+      return NextResponse.json({ error: 'Mobile number is mandatory' }, { status: 400 })
+    }
+    const normalizedPhone = phone.trim()
+    const existingPhone = await prisma.user.findUnique({
+      where: { phone: normalizedPhone }
+    })
+    if (existingPhone) {
+      return NextResponse.json(
+        { error: 'A user with this mobile number already exists' },
+        { status: 400 }
+      )
+    }
 
+    const hashedPassword = await bcrypt.hash(password, 10)
     const userRole = role === 'farmer' ? 'farmer' : 'customer'
 
     // Create user and cart in a transaction if role is customer
     const user = await prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
         data: {
+          name: name.trim(),
           email: normalizedEmail,
           password: hashedPassword,
-          name: name.trim(),
           role: userRole,
-          phone: phone || null,
-          address: address || null
+          phone: normalizedPhone,
+          address: address ? address.trim() : null
         }
       })
 

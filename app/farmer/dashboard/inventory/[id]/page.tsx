@@ -10,6 +10,13 @@ import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import { PRODUCT_CATEGORIES } from '@/config/constants'
 
+interface UnitSizeItem {
+  id: string
+  size: string
+  price: string
+  quantity: string
+}
+
 export default function EditProductPage({
   params
 }: {
@@ -17,8 +24,6 @@ export default function EditProductPage({
 }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [price, setPrice] = useState('')
-  const [quantity, setQuantity] = useState('')
   const [category, setCategory] = useState('')
   const [image, setImage] = useState('')
   const [loading, setLoading] = useState(true)
@@ -29,10 +34,14 @@ export default function EditProductPage({
   const [categories, setCategories] = useState<string[]>(Array.from(PRODUCT_CATEGORIES))
   const [stockHistory, setStockHistory] = useState<any[]>([])
   const [showStockModal, setShowStockModal] = useState(false)
-  const [stockAction, setStockAction] = useState<'add' | 'remove' | 'set'>('add')
+  const [stockAction, setStockAction] = useState<'add' | 'remove' | 'set' | 'damage'>('add')
   const [stockValue, setStockValue] = useState('')
   const [stockReason, setStockReason] = useState('')
   const [stockUpdating, setStockUpdating] = useState(false)
+
+  // Product Unit Sizes state
+  const [unitSizes, setUnitSizes] = useState<UnitSizeItem[]>([])
+  const [selectedUnitSizeId, setSelectedUnitSizeId] = useState('')
 
   const router = useRouter()
 
@@ -43,11 +52,33 @@ export default function EditProductPage({
         const data = await res.json()
         setName(data.name || '')
         setDescription(data.description || '')
-        setPrice(data.price.toString() || '')
-        setQuantity(data.quantity.toString() || '')
         setCategory(data.category || '')
         setImage(data.image || '')
         setStockHistory(data.stockHistory || [])
+
+        if (data.unitSizes) {
+          try {
+            const parsed = JSON.parse(data.unitSizes) as any[]
+            const formatted = parsed.map(p => ({
+              id: p.id,
+              size: p.size,
+              price: p.price.toString(),
+              quantity: p.quantity.toString()
+            }))
+            setUnitSizes(formatted)
+            if (formatted.length > 0) {
+              setSelectedUnitSizeId(formatted[0].id)
+            }
+          } catch {
+            const defUnit = [{ id: 'default', size: '1 Unit', price: data.price.toString(), quantity: data.quantity.toString() }]
+            setUnitSizes(defUnit)
+            setSelectedUnitSizeId('default')
+          }
+        } else {
+          const defUnit = [{ id: 'default', size: '1 Unit', price: data.price.toString(), quantity: data.quantity.toString() }]
+          setUnitSizes(defUnit)
+          setSelectedUnitSizeId('default')
+        }
       } else {
         setError('Failed to load product details.')
       }
@@ -76,21 +107,62 @@ export default function EditProductPage({
     fetchCategories()
   }, [params.id])
 
+  const handleAddUnitSize = () => {
+    const nextId = Math.random().toString(36).substring(2, 9)
+    setUnitSizes([...unitSizes, { id: nextId, size: '', price: '', quantity: '' }])
+  }
+
+  const handleRemoveUnitSize = (id: string) => {
+    if (unitSizes.length === 1) return
+    setUnitSizes(unitSizes.filter((u) => u.id !== id))
+    if (selectedUnitSizeId === id) {
+      setSelectedUnitSizeId(unitSizes.filter((u) => u.id !== id)[0].id)
+    }
+  }
+
+  const handleUnitSizeChange = (id: string, field: keyof UnitSizeItem, value: string) => {
+    setUnitSizes(unitSizes.map((u) => (u.id === id ? { ...u, [field]: value } : u)))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+
+    // Validate unit sizes
+    for (const u of unitSizes) {
+      if (!u.size.trim() || !u.price || !u.quantity) {
+        setError('All unit size options must have valid sizes, prices, and stock quantities.')
+        return
+      }
+      if (parseFloat(u.price) <= 0 || parseInt(u.quantity) < 0) {
+        setError('Price must be greater than 0 and stock cannot be negative.')
+        return
+      }
+    }
+
     setUpdating(true)
 
     try {
+      const parsedUnitSizes = unitSizes.map((u) => ({
+        id: u.id,
+        size: u.size.trim(),
+        price: parseFloat(u.price),
+        quantity: parseInt(u.quantity)
+      }))
+
+      // Primary price is the first size's price, total quantity is the sum
+      const primaryPrice = parsedUnitSizes[0].price
+
       const res = await fetch(`/api/products/${params.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
           description,
-          price: parseFloat(price),
+          price: primaryPrice,
           category,
-          image
+          image,
+          unitSizes: JSON.stringify(parsedUnitSizes)
         }),
       })
 
@@ -121,7 +193,8 @@ export default function EditProductPage({
           stockUpdate: {
             action: stockAction,
             value: parseInt(stockValue),
-            reason: stockReason
+            reason: stockReason,
+            unitSizeId: selectedUnitSizeId
           }
         }),
       })
@@ -143,12 +216,15 @@ export default function EditProductPage({
     }
   }
 
+  // Calculate total stock for display
+  const totalStockDisplay = unitSizes.reduce((sum, u) => sum + (parseInt(u.quantity) || 0), 0)
+
   return (
     <ProtectedRoute allowedRoles={['farmer']}>
       <Navbar />
       <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8 flex-1">
         <div className="flex items-center gap-2 mb-8">
-          <Link href="/farmer/dashboard/inventory" className="text-slate-400 hover:text-emerald-700 transition">
+          <Link href="/farmer/dashboard/inventory" className="text-slate-400 hover:text-emerald-700 transition font-bold">
             ⬅️ Inventory
           </Link>
           <span className="text-slate-350">/</span>
@@ -165,27 +241,33 @@ export default function EditProductPage({
           <>
             <Card hoverEffect={false} className="bg-white border border-slate-100 shadow-md p-8">
               {error && (
-                <div className="rounded-lg bg-rose-50 border border-rose-100 p-4 text-sm text-rose-600 font-semibold mb-6">
+                <div className="rounded-lg bg-rose-50 border border-rose-100 p-4 text-xs text-rose-600 font-bold mb-6">
                   {error}
                 </div>
               )}
 
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid sm:grid-cols-2 gap-4">
-                  <Input
-                    label="Product Name"
-                    required
-                    placeholder="e.g., Organic Honey, Vine Tomatoes"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                      Product Name <span className="text-rose-500 font-black ml-1">^</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Moringa Powder"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-950 outline-none transition focus:border-emerald-500 font-semibold"
+                    />
+                  </div>
 
                   <div className="w-full space-y-1">
-                    <label className="block text-sm font-semibold text-slate-700">
-                      Category
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                      Category <span className="text-rose-500 font-black ml-1">^</span>
                     </label>
                     <select
-                      className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-950 outline-none bg-white transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 font-medium"
+                      className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-950 outline-none bg-white transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 font-semibold"
                       value={category}
                       onChange={(e) => setCategory(e.target.value)}
                     >
@@ -200,23 +282,22 @@ export default function EditProductPage({
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-4">
-                  <Input
-                    label="Unit Price (₹)"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    required
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                  />
+                  <div>
+                    <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider mb-2">
+                      Display Price (₹)
+                    </label>
+                    <div className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-400 bg-slate-50 font-bold leading-normal">
+                      ₹{unitSizes[0]?.price || '0.00'}
+                    </div>
+                  </div>
 
                   <div className="space-y-1">
-                    <label className="block text-sm font-semibold text-slate-700">
+                    <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider mb-2">
                       Available Stock
                     </label>
                     <div className="flex gap-2">
                       <div className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-950 bg-slate-50 font-bold leading-normal">
-                        {quantity} Units
+                        {totalStockDisplay} Units Total
                       </div>
                       <button
                         type="button"
@@ -229,26 +310,99 @@ export default function EditProductPage({
                   </div>
                 </div>
 
+                {/* Multiple Unit Sizes Manager */}
+                <div className="border-t border-b border-slate-100 py-6 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <label className="block text-xs font-black text-slate-550 uppercase tracking-wider">
+                      Product Unit Size Configurations <span className="text-rose-500 font-black ml-1">^</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleAddUnitSize}
+                      className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold transition flex items-center gap-1 active:scale-[0.97]"
+                    >
+                      ➕ Add Unit Size Option
+                    </button>
+                  </div>
+                  <p className="text-xxs text-slate-400 font-medium">
+                    Adjust the configuration settings below. Modifying these entries will recalculate display values.
+                  </p>
+
+                  <div className="space-y-2">
+                    {unitSizes.map((u) => (
+                      <div key={u.id} className="flex gap-2 items-center flex-wrap sm:flex-nowrap bg-slate-50/50 p-2 border border-slate-100 rounded-xl">
+                        <div className="flex-1 min-w-[120px]">
+                          <input
+                            type="text"
+                            required
+                            placeholder="Size (e.g. 100grm)"
+                            value={u.size}
+                            onChange={(e) => handleUnitSizeChange(u.id, 'size', e.target.value)}
+                            className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-950 outline-none focus:border-emerald-500 font-semibold"
+                          />
+                        </div>
+                        <div className="w-28">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            required
+                            placeholder="Price (₹)"
+                            value={u.price}
+                            onChange={(e) => handleUnitSizeChange(u.id, 'price', e.target.value)}
+                            className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-950 outline-none focus:border-emerald-500 font-semibold"
+                          />
+                        </div>
+                        <div className="w-24">
+                          <input
+                            type="number"
+                            min="0"
+                            required
+                            placeholder="Stock"
+                            value={u.quantity}
+                            onChange={(e) => handleUnitSizeChange(u.id, 'quantity', e.target.value)}
+                            className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-950 outline-none focus:border-emerald-500 font-semibold"
+                          />
+                        </div>
+                        {unitSizes.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveUnitSize(u.id)}
+                            className="text-rose-600 hover:text-rose-700 font-bold text-xs px-2 py-1 hover:bg-rose-50 rounded-lg transition"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="space-y-1">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Product Description
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Product Description <span className="text-rose-500 font-black ml-1">^</span>
                   </label>
                   <textarea
                     required
                     rows={4}
-                    className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-950 placeholder-slate-400 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 font-medium"
+                    className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-950 placeholder-slate-400 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 font-semibold"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                   />
                 </div>
 
-                <Input
-                  label="Image URL"
-                  type="url"
-                  placeholder="https://example.com/spinach.jpg"
-                  value={image}
-                  onChange={(e) => setImage(e.target.value)}
-                />
+                <div>
+                  <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider mb-2">
+                    Image URL
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://example.com/moringa.jpg"
+                    value={image}
+                    onChange={(e) => setImage(e.target.value)}
+                    className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-950 outline-none transition focus:border-emerald-500 font-semibold"
+                  />
+                </div>
 
                 <div className="pt-4 border-t border-slate-50 flex justify-end gap-3">
                   <Link href="/farmer/dashboard/inventory">
@@ -297,6 +451,7 @@ export default function EditProductPage({
                                 <span className={`px-2 py-0.5 rounded-full text-xxs font-black ${
                                   history.action === 'add' ? 'bg-emerald-50 text-emerald-700' :
                                   history.action === 'remove' ? 'bg-rose-50 text-rose-700' :
+                                  history.action === 'damage' ? 'bg-amber-50 text-amber-705 border border-amber-200' :
                                   'bg-indigo-50 text-indigo-700'
                                 }`}>
                                   {history.action}
@@ -342,17 +497,37 @@ export default function EditProductPage({
 
               <form onSubmit={handleStockUpdate}>
                 <div className="p-6 space-y-4">
+                  {/* Unit Size Selection */}
+                  {unitSizes.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                        Select Unit Size Option <span className="text-rose-500 font-bold ml-0.5">^</span>
+                      </label>
+                      <select
+                        className="block w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none bg-white text-slate-950 focus:border-emerald-500"
+                        value={selectedUnitSizeId}
+                        onChange={(e) => setSelectedUnitSizeId(e.target.value)}
+                      >
+                        {unitSizes.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.size} (Current: {u.quantity} Units)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                      Adjustment Action
+                      Adjustment Action <span className="text-rose-500 font-bold ml-0.5">^</span>
                     </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {(['add', 'remove', 'set'] as const).map((act) => (
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {(['add', 'remove', 'set', 'damage'] as const).map((act) => (
                         <button
                           key={act}
                           type="button"
                           onClick={() => setStockAction(act)}
-                          className={`py-2 px-3 text-xs font-bold rounded-lg border capitalize transition ${
+                          className={`py-2 px-1 text-xxs font-bold rounded-lg border capitalize transition ${
                             stockAction === act
                               ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm'
                               : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -361,6 +536,7 @@ export default function EditProductPage({
                           {act === 'add' && '➕ Add'}
                           {act === 'remove' && '➖ Remove'}
                           {act === 'set' && '🎯 Set'}
+                          {act === 'damage' && '⚠️ Damage'}
                         </button>
                       ))}
                     </div>
@@ -368,7 +544,7 @@ export default function EditProductPage({
 
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                      Quantity Amount
+                      Quantity Amount <span className="text-rose-500 font-bold ml-0.5">^</span>
                     </label>
                     <input
                       type="number"

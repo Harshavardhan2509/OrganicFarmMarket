@@ -8,7 +8,7 @@ import prisma from '@/lib/db'
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session || !session.user?.email) {
+    if (!session || !(session.user as any).id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -47,11 +47,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session || !session.user?.email) {
+    if (!session || !(session.user as any).id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { productId, quantity } = await request.json()
+    const { productId, quantity, unitSize } = await request.json()
 
     if (!productId || quantity === undefined) {
       return NextResponse.json({ error: 'Product ID and quantity are required' }, { status: 400 })
@@ -76,16 +76,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     }
 
-    if (product.quantity < quantity) {
+    let maxStock = product.quantity
+    if (product.unitSizes) {
+      try {
+        const sizes = JSON.parse(product.unitSizes) as Array<{ id: string; size: string; price: number; quantity: number }>
+        const sizeObj = sizes.find(s => s.size === unitSize)
+        if (sizeObj) {
+          maxStock = sizeObj.quantity
+        }
+      } catch (e) {
+        console.error('Failed to parse product unit sizes:', e)
+      }
+    }
+
+    if (maxStock < quantity) {
       return NextResponse.json({ error: 'Requested quantity exceeds available stock' }, { status: 400 })
     }
 
-    // Check if item already exists in cart
+    // Check if item already exists in cart with the specified unit size
     const existingCartItem = await prisma.cartItem.findUnique({
       where: {
-        cartId_productId: {
+        cartId_productId_unitSize: {
           cartId: cart.id,
-          productId
+          productId,
+          unitSize: unitSize || null
         }
       }
     })
@@ -115,7 +129,8 @@ export async function POST(request: NextRequest) {
           cartId: cart.id,
           productId,
           quantity,
-          userId: (session.user as any).id
+          userId: (session.user as any).id,
+          unitSize: unitSize || null
         }
       })
     }
@@ -130,11 +145,11 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session || !session.user?.email) {
+    if (!session || !(session.user as any).id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { productId, clearAll } = await request.json().catch(() => ({}))
+    const { productId, unitSize, clearAll } = await request.json().catch(() => ({}))
 
     const cart = await prisma.cart.findFirst({
       where: { userId: (session.user as any).id }
@@ -155,11 +170,16 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Product ID required to remove specific item' }, { status: 400 })
     }
 
+    const deleteWhere: any = {
+      cartId: cart.id,
+      productId
+    }
+    if (unitSize !== undefined) {
+      deleteWhere.unitSize = unitSize || null
+    }
+
     await prisma.cartItem.deleteMany({
-      where: {
-        cartId: cart.id,
-        productId
-      }
+      where: deleteWhere
     })
 
     return NextResponse.json({ message: 'Item removed from cart' })

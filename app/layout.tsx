@@ -7,7 +7,7 @@ import '../styles/globals.css'
 const inter = Inter({ subsets: ['latin'], display: 'swap' })
 
 export const metadata: Metadata = {
-  title: 'Sasya Kshetra Organic Farm',
+  title: 'Sasya Khetr Organic Farm',
   description: 'A platform connecting organic farmers with customers',
   icons: {
     icon: '/icons/farm.svg',

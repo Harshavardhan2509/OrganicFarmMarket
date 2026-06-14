@@ -6,12 +6,14 @@ import { useRouter } from 'next/navigation'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
-  allowedRoles?: ('customer' | 'farmer')[]
+  allowedRoles?: ('customer' | 'farmer' | 'salesperson')[]
+  allowGuest?: boolean
 }
 
 export default function ProtectedRoute({
   children,
-  allowedRoles
+  allowedRoles,
+  allowGuest
 }: ProtectedRouteProps) {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -20,22 +22,25 @@ export default function ProtectedRoute({
     if (status === 'loading') return
 
     if (status === 'unauthenticated') {
+      if (allowGuest) return
       router.push('/auth/login')
       return
     }
 
     if (session?.user && allowedRoles) {
-      const userRole = (session.user as any).role as 'customer' | 'farmer'
+      const userRole = (session.user as any).role as 'customer' | 'farmer' | 'salesperson'
       if (!allowedRoles.includes(userRole)) {
         // Redirect to their default dashboard if they have the wrong role
         if (userRole === 'farmer') {
           router.push('/farmer/dashboard')
+        } else if (userRole === 'salesperson') {
+          router.push('/farmer/dashboard/counter')
         } else {
           router.push('/customer/dashboard')
         }
       }
     }
-  }, [status, session, allowedRoles, router])
+  }, [status, session, allowedRoles, router, allowGuest])
 
   if (status === 'loading') {
     return (
@@ -51,11 +56,11 @@ export default function ProtectedRoute({
   }
 
   if (status === 'unauthenticated') {
-    return null // Will redirect in useEffect
+    return allowGuest ? <>{children}</> : null // Will redirect in useEffect
   }
 
   if (session?.user && allowedRoles) {
-    const userRole = (session.user as any).role as 'customer' | 'farmer'
+    const userRole = (session.user as any).role as 'customer' | 'farmer' | 'salesperson'
     if (!allowedRoles.includes(userRole)) {
       return null // Will redirect in useEffect
     }

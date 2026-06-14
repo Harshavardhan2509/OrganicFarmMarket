@@ -68,18 +68,18 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session || !session.user?.email || (session.user as any).role !== 'farmer') {
+    if (!session || !(session.user as any).id || (session.user as any).role !== 'farmer') {
       return NextResponse.json({ error: 'Unauthorized. Farmers only.' }, { status: 401 })
     }
 
-    const { name, description, price, quantity, category, image } = await request.json()
+    const { name, description, price, quantity, category, image, unitSizes } = await request.json()
 
     if (!name || !description || price === undefined || quantity === undefined || !category) {
       return NextResponse.json({ error: 'All fields are required' }, { status: 400 })
     }
 
     const farmer = await prisma.user.findUnique({
-      where: { email: session.user.email! }
+      where: { id: (session.user as any).id }
     })
 
     if (!farmer) {
@@ -106,7 +106,8 @@ export async function POST(request: NextRequest) {
         category,
         image: image || null,
         farmerId: farmer.id,
-        farmerEmail: farmer.email
+        farmerEmail: farmer.email,
+        unitSizes: unitSizes || null
       }
     })
 

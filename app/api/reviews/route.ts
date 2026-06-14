@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session || !session.user?.email || (session.user as any).role !== 'customer') {
+    if (!session || !(session.user as any).id || (session.user as any).role !== 'customer') {
       return NextResponse.json({ error: 'Unauthorized. Customers only.' }, { status: 401 })
     }
 
@@ -51,19 +51,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Rating must be between 1 and 5' }, { status: 400 })
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email }
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
+    const userId = (session.user as any).id
 
     // Upsert review (since userId, productId has unique index)
     const review = await prisma.review.upsert({
       where: {
         userId_productId: {
-          userId: user.id,
+          userId,
           productId
         }
       },
@@ -72,7 +66,7 @@ export async function POST(request: NextRequest) {
         comment: comment.trim()
       },
       create: {
-        userId: user.id,
+        userId,
         productId,
         rating: ratingVal,
         comment: comment.trim()

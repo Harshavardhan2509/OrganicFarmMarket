@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import ProtectedRoute from '@/components/common/ProtectedRoute'
 import Navbar from '@/components/common/Navbar'
 import Card from '@/components/ui/Card'
@@ -20,9 +21,11 @@ interface Product {
   farmer?: {
     name: string
   }
+  unitSizes?: string
 }
 
 export default function CustomerDashboard() {
+  const { data: session, status } = useSession()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -37,6 +40,9 @@ export default function CustomerDashboard() {
   const [userRating, setUserRating] = useState<number>(5)
   const [userComment, setUserComment] = useState<string>('')
   const [reviewSubmitting, setReviewSubmitting] = useState<boolean>(false)
+
+  // Selected unit size per product
+  const [selectedUnitSizes, setSelectedUnitSizes] = useState<Record<string, string>>({})
 
   const fetchProducts = async () => {
     setLoading(true)
@@ -120,18 +126,49 @@ export default function CustomerDashboard() {
   }
 
   const handleAddToCart = async (productId: string) => {
+    const product = products.find(p => p.id === productId)
+    if (!product) return
+
+    let sizesList: any[] = []
+    if (product.unitSizes) {
+      try {
+        sizesList = JSON.parse(product.unitSizes)
+      } catch {}
+    }
+    const chosenSize = selectedUnitSizes[productId] || (sizesList.length > 0 ? sizesList[0].size : null)
+
     setAddingId(productId)
     setToastMessage(null)
+
+    if (status === 'unauthenticated') {
+      const guestCartJson = localStorage.getItem('guestCart') || '[]'
+      let guestCart = []
+      try {
+        guestCart = JSON.parse(guestCartJson)
+      } catch {}
+
+      const existing = guestCart.find((item: any) => item.productId === productId && item.unitSize === chosenSize)
+      if (existing) {
+        existing.quantity += 1
+      } else {
+        guestCart.push({ productId, quantity: 1, unitSize: chosenSize })
+      }
+      localStorage.setItem('guestCart', JSON.stringify(guestCart))
+      setToastMessage(`Added ${product.name} to guest cart! 🛒`)
+      setTimeout(() => setToastMessage(null), 3000)
+      setAddingId(null)
+      return
+    }
+
     try {
       const res = await fetch('/api/cart', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId, quantity: 1 }),
+        body: JSON.stringify({ productId, quantity: 1, unitSize: chosenSize }),
       })
 
       if (res.ok) {
-        const product = products.find(p => p.id === productId)
-        setToastMessage(`Added ${product?.name} to your shopping cart! 🛒`)
+        setToastMessage(`Added ${product.name} to your shopping cart! 🛒`)
         setTimeout(() => setToastMessage(null), 3000)
       } else {
         const data = await res.json()
@@ -249,94 +286,151 @@ export default function CustomerDashboard() {
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {products.map((prod) => (
-              <Card key={prod.id} className="flex flex-col h-full bg-white relative overflow-hidden group">
-                {/* Category indicator label */}
-                <div className="absolute top-4 left-4 z-10">
-                  <Badge variant="info" className="opacity-90">
-                    {prod.category}
-                  </Badge>
-                </div>
+            {products.map((prod) => {
+              let sizes: any[] = []
+              if (prod.unitSizes) {
+                try {
+                  sizes = JSON.parse(prod.unitSizes)
+                } catch {}
+              }
+              const hasSizes = sizes && sizes.length > 0
+              const chosenSizeName = selectedUnitSizes[prod.id] || (hasSizes ? sizes[0].size : null)
+              const chosenSizeObj = hasSizes ? sizes.find((s: any) => s.size === chosenSizeName) : null
+              const displayedPrice = chosenSizeObj ? chosenSizeObj.price : prod.price
+              const displayedStock = chosenSizeObj ? chosenSizeObj.quantity : prod.quantity
+              const isSoldOut = displayedStock === 0
+              const isLowStock = displayedStock > 0 && displayedStock <= 5
 
-                {/* Stock Warning Badge */}
-                {prod.quantity === 0 ? (
-                  <div className="absolute top-4 right-4 z-10">
-                    <Badge variant="danger">Sold Out</Badge>
-                  </div>
-                ) : prod.quantity <= 5 ? (
-                  <div className="absolute top-4 right-4 z-10">
-                    <Badge variant="warning">Only {prod.quantity} Left</Badge>
-                  </div>
-                ) : null}
-
-                {/* Image Placeholder */}
-                <div className="w-full h-44 bg-emerald-50/50 rounded-2xl flex items-center justify-center text-5xl mb-4 select-none transition group-hover:scale-[1.02]">
-                  {prod.category === 'Fruits' && '🍎'}
-                  {prod.category === 'Vegetables' && '🥦'}
-                  {prod.category === 'Grains' && '🌾'}
-                  {prod.category === 'Dairy' && '🥛'}
-                  {prod.category === 'Honey & Jams' && '🍯'}
-                  {prod.category === 'Herbs & Spices' && '🌿'}
-                  {!['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Honey & Jams', 'Herbs & Spices'].includes(prod.category) && '🌱'}
-                </div>
-
-                <div className="flex-1 flex flex-col">
-                  <span className="text-xxs font-extrabold tracking-wider uppercase text-emerald-600 block mb-1">
-                    👨‍🌾 {prod.farmer?.name || 'Local Farmer'}
-                  </span>
-                  <h3 className="text-base font-extrabold text-slate-900 tracking-tight leading-snug line-clamp-1 mb-1">
-                    {prod.name}
-                  </h3>
-
-                  {/* Reviews Star Rating Badge */}
-                  <div className="flex items-center gap-1 mb-2">
-                    {(() => {
-                      const reviews = (prod as any).reviews || []
-                      const count = reviews.length
-                      const avg = count
-                        ? (reviews.reduce((sum: number, r: any) => sum + r.rating, 0) / count).toFixed(1)
-                        : null
-                      return (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveReviewProduct(prod)
-                            setUserRating(5)
-                            setUserComment('')
-                          }}
-                          className="flex items-center gap-1.5 text-xs font-bold text-amber-500 hover:text-amber-600 transition bg-amber-50/50 hover:bg-amber-50 px-2 py-1 rounded-lg border border-amber-100/55"
-                        >
-                          <span>⭐</span>
-                          <span className="text-slate-800">{avg ? `${avg} / 5` : 'No reviews'}</span>
-                          <span className="text-slate-400 font-medium">({count} review{count !== 1 ? 's' : ''})</span>
-                        </button>
-                      )
-                    })()}
+              return (
+                <Card key={prod.id} className="flex flex-col h-full bg-white relative overflow-hidden group">
+                  {/* Category indicator label */}
+                  <div className="absolute top-4 left-4 z-10">
+                    <Badge variant="info" className="opacity-90">
+                      {prod.category}
+                    </Badge>
                   </div>
 
-                  <p className="text-xs text-slate-500 line-clamp-2 mb-4 font-medium">
-                    {prod.description}
-                  </p>
+                  {/* Stock Warning Badge */}
+                  {isSoldOut ? (
+                    <div className="absolute top-4 right-4 z-10">
+                      <Badge variant="danger">Sold Out</Badge>
+                    </div>
+                  ) : isLowStock ? (
+                    <div className="absolute top-4 right-4 z-10">
+                      <Badge variant="warning">Only {displayedStock} Left</Badge>
+                    </div>
+                  ) : null}
 
-                  <div className="mt-auto pt-4 flex justify-between items-center border-t border-slate-50">
-                    <div>
-                      <span className="text-xxs uppercase tracking-wider font-extrabold text-slate-400 block">Unit Price</span>
-                      <span className="text-lg font-black text-slate-900">₹{prod.price.toFixed(2)}</span>
+                  {/* Image Placeholder */}
+                  <div className="w-full h-44 bg-emerald-50/50 rounded-2xl flex items-center justify-center text-5xl mb-4 select-none transition group-hover:scale-[1.02]">
+                    {prod.category === 'Fruits' && '🍎'}
+                    {prod.category === 'Vegetables' && '🥦'}
+                    {prod.category === 'Grains' && '🌾'}
+                    {prod.category === 'Dairy' && '🥛'}
+                    {prod.category === 'Honey & Jams' && '🍯'}
+                    {prod.category === 'Herbs & Spices' && '🌿'}
+                    {!['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Honey & Jams', 'Herbs & Spices'].includes(prod.category) && '🌱'}
+                  </div>
+
+                  <div className="flex-1 flex flex-col">
+                    <h3 className="text-base font-extrabold text-slate-900 tracking-tight leading-snug line-clamp-1 mb-1 mt-1">
+                      {prod.name}
+                    </h3>
+
+                    {/* Reviews Star Rating Badge */}
+                    <div className="flex items-center gap-1 mb-2">
+                      {(() => {
+                        const reviews = (prod as any).reviews || []
+                        const count = reviews.length
+                        const avg = count
+                          ? (reviews.reduce((sum: number, r: any) => sum + r.rating, 0) / count).toFixed(1)
+                          : null
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveReviewProduct(prod)
+                              setUserRating(5)
+                              setUserComment('')
+                            }}
+                            className="flex items-center gap-1.5 text-xs font-bold text-amber-500 hover:text-amber-600 transition bg-amber-50/50 hover:bg-amber-50 px-2 py-1 rounded-lg border border-amber-100/55"
+                          >
+                            <span>⭐</span>
+                            <span className="text-slate-800">{avg ? `${avg} / 5` : 'No reviews'}</span>
+                            <span className="text-slate-400 font-medium">({count} review{count !== 1 ? 's' : ''})</span>
+                          </button>
+                        )
+                      })()}
                     </div>
 
-                    <Button
-                      variant={prod.quantity === 0 ? 'secondary' : 'primary'}
-                      size="sm"
-                      disabled={prod.quantity === 0}
-                      loading={addingId === prod.id}
-                      onClick={() => handleAddToCart(prod.id)}
-                    >
-                      {prod.quantity === 0 ? 'Sold Out' : 'Add to Cart'}
-                    </Button>
+                    <p className="text-xs text-slate-500 line-clamp-2 mb-3 font-medium">
+                      {prod.description}
+                    </p>
+
+                    {/* Dropdown for unit sizes selection */}
+                    {hasSizes && (
+                      <div className="mb-3">
+                        <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">
+                          Select Unit Size
+                        </label>
+                        <select
+                          className="block w-full border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold outline-none bg-white text-slate-850 transition focus:border-emerald-500"
+                          value={chosenSizeName || ''}
+                          onChange={(e) => {
+                            setSelectedUnitSizes({
+                              ...selectedUnitSizes,
+                              [prod.id]: e.target.value
+                            })
+                          }}
+                        >
+                          {sizes.map((s: any) => (
+                            <option key={s.id} value={s.size}>
+                              {s.size} (₹{s.price})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <div className="mb-3 text-[10px] font-semibold text-slate-450 uppercase tracking-wider">
+                      {hasSizes ? (
+                        <div className="space-y-1">
+                          <span className="block text-slate-400 font-extrabold uppercase text-[9px]">Unit Stocks:</span>
+                          <div className="flex flex-wrap gap-x-2 gap-y-1 text-slate-700 font-bold">
+                            {sizes.map((s: any) => (
+                              <span key={s.id} className="bg-slate-100 px-1.5 py-0.5 rounded text-[9px] whitespace-nowrap">
+                                {s.size}: <span className={s.quantity === 0 ? 'text-rose-600 font-black' : 'text-slate-900 font-black'}>{s.quantity}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          Stock: <span className="font-extrabold text-slate-700">{displayedStock} units</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-auto pt-4 flex justify-between items-center border-t border-slate-50">
+                      <div>
+                        <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 block">Price</span>
+                        <span className="text-lg font-black text-slate-900">₹{displayedPrice.toFixed(2)}</span>
+                      </div>
+
+                      <Button
+                        variant={isSoldOut ? 'secondary' : 'primary'}
+                        size="sm"
+                        disabled={isSoldOut}
+                        loading={addingId === prod.id}
+                        onClick={() => handleAddToCart(prod.id)}
+                      >
+                        {isSoldOut ? 'Sold Out' : 'Add to Cart'}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              )
+            })}
           </div>
         )}
 
@@ -350,9 +444,6 @@ export default function CustomerDashboard() {
                   <h3 className="text-lg font-bold text-slate-900 truncate max-w-[280px]">
                     Reviews for {activeReviewProduct.name}
                   </h3>
-                  <span className="text-xxs font-extrabold uppercase tracking-wider text-emerald-600 block mt-0.5">
-                    👨‍🌾 Sold by {activeReviewProduct.farmer?.name || 'Local Farmer'}
-                  </span>
                 </div>
                 <button
                   type="button"

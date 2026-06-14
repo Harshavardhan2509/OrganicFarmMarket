@@ -8,7 +8,7 @@ export default function Home() {
         <div className="mx-auto max-w-7xl flex h-16 items-center justify-between">
           <div className="flex items-center gap-2 text-xl font-extrabold tracking-tight text-emerald-800">
             <span className="text-2xl animate-pulse">🌱</span>
-            <span className="font-black">Sasya Kshetra</span>
+            <span className="font-black">Sasya Khetr</span>
           </div>
         </div>
       </header>
@@ -25,7 +25,7 @@ export default function Home() {
             </span>
 
             <h1 className="text-4xl sm:text-6xl font-black text-slate-900 tracking-tight leading-none mb-6">
-              Harvest Freshness Directly From <span className="text-emerald-700 bg-clip-text">Sasya Kshetra</span>
+              Harvest Freshness Directly From <span className="text-emerald-700 bg-clip-text">Sasya Khetr</span>
             </h1>
 
             <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed mb-10">
@@ -69,7 +69,7 @@ export default function Home() {
         {/* Feature listings */}
         <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
           <div className="text-center max-w-xl mx-auto mb-16">
-            <h2 className="text-sm font-extrabold text-emerald-700 uppercase tracking-wider">How Sasya Kshetra Works</h2>
+            <h2 className="text-sm font-extrabold text-emerald-700 uppercase tracking-wider">How Sasya Khetr Works</h2>
             <p className="text-3xl font-black text-slate-900 tracking-tight mt-2">Revolutionizing local farm logistics</p>
           </div>
 
@@ -81,7 +81,7 @@ export default function Home() {
                 <span className="text-4xl block mb-6 filter drop-shadow">🌱</span>
                 <h3 className="text-xl font-extrabold text-slate-900 mb-3">Fresh Harvest</h3>
                 <p className="text-slate-500 text-sm leading-relaxed">
-                  Browse real-time active inventory harvested fresh from certified crops inside Sasya Kshetra farms.
+                  Browse real-time active inventory harvested fresh from certified crops inside Sasya Khetr farms.
                 </p>
               </div>
             </div>
@@ -115,7 +115,7 @@ export default function Home() {
 
       {/* Premium Footer */}
       <footer className="border-t border-slate-100 bg-white py-12 px-4 sm:px-6 lg:px-8 text-center text-xs text-slate-400 font-semibold">
-        <p>© 2026 Sasya Kshetra Organic Farm. All rights reserved.</p>
+        <p>© 2026 Sasya Khetr Organic Farm. All rights reserved.</p>
         <p className="mt-2 text-slate-350">Made with care for sustainable community agriculture.</p>
       </footer>
     </div>

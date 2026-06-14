@@ -26,6 +26,7 @@ interface Order {
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled'
   paymentStatus: string
   shippingAddress: string
+  stallName?: string | null
   createdAt: string
   items: OrderItem[]
   user: {
@@ -192,6 +193,12 @@ export default function FarmerOrdersPage() {
                       <span className="text-slate-400">Destination:</span>
                       <span className="text-slate-950 font-bold ml-1.5">{order.shippingAddress}</span>
                     </div>
+                    {order.stallName && (
+                      <div>
+                        <span className="text-slate-400">Apartment / Stall:</span>
+                        <span className="text-slate-900 font-bold ml-1.5">{order.stallName}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Item details */}
@@ -205,7 +212,7 @@ export default function FarmerOrdersPage() {
                         </div>
                       ))}
                       <div className="flex justify-between items-center pt-2 font-bold text-xs text-slate-900 border-t border-slate-200 mt-1.5">
-                        <span>My Share Income</span>
+                        <span>Total sales</span>
                         <span className="text-sm font-black text-emerald-700">₹{order.totalAmount.toFixed(2)}</span>
                       </div>
                     </div>

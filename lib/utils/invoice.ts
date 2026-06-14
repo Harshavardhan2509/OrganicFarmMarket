@@ -335,7 +335,7 @@ export function downloadInvoice(order: {
       <div class="container">
         <div class="header">
           <div>
-            <div class="brand">🌱 Sasya Kshetra</div>
+            <div class="brand">🌱 Sasya Khetr</div>
             <p style="margin: 8px 0 0 0; font-size: 13px; font-weight: 500; color: #64748b;">Direct Local Agricultural Marketplace</p>
           </div>
           <div class="meta">

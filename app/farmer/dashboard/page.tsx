@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useSession } from 'next-auth/react'
 import ProtectedRoute from '@/components/common/ProtectedRoute'
 import Navbar from '@/components/common/Navbar'
 import Card from '@/components/ui/Card'
@@ -46,15 +47,34 @@ interface LowStockItem {
 }
 
 export default function FarmerDashboard() {
+  const { data: session } = useSession()
+  const userRole = (session?.user as any)?.role
+
   const [summary, setSummary] = useState<SummaryStats | null>(null)
   const [history, setHistory] = useState<SalesHistoryItem[]>([])
   const [productSales, setProductSales] = useState<ProductSalesItem[]>([])
   const [lowStock, setLowStock] = useState<LowStockItem[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Interactive filters state
+  const [orderType, setOrderType] = useState('all') // all, pre-order, live-counter
+  const [timeframe, setTimeframe] = useState('weekly') // weekly, monthly, yearly
+  const [apartment, setApartment] = useState('all') // all, stallName
+  const [apartmentsList, setApartmentsList] = useState<any[]>([])
+
   const fetchAnalytics = async () => {
     try {
-      const res = await fetch('/api/analytics/sales')
+      const params = new URLSearchParams()
+      const activeOrderType = userRole === 'salesperson' ? 'live-counter' : orderType
+      
+      params.append('orderType', activeOrderType)
+      params.append('timeframe', timeframe)
+      
+      if (userRole !== 'salesperson' && apartment !== 'all') {
+        params.append('apartment', apartment)
+      }
+
+      const res = await fetch(`/api/analytics/sales?${params.toString()}`)
       if (res.ok) {
         const data = await res.json()
         setSummary(data.summary)
@@ -70,24 +90,90 @@ export default function FarmerDashboard() {
   }
 
   useEffect(() => {
-    fetchAnalytics()
+    if (session) {
+      fetchAnalytics()
+    }
+  }, [session, orderType, timeframe, apartment])
+
+  useEffect(() => {
+    const fetchApartments = async () => {
+      try {
+        const res = await fetch('/api/stalls')
+        if (res.ok) {
+          const data = await res.json()
+          setApartmentsList(data)
+        }
+      } catch (err) {
+        console.error('Failed to fetch apartments list:', err)
+      }
+    }
+    fetchApartments()
   }, [])
 
   return (
-    <ProtectedRoute allowedRoles={['farmer']}>
+    <ProtectedRoute allowedRoles={['farmer', 'salesperson']}>
       <Navbar />
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 flex-1">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
           <div>
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Business Overview</h1>
             <p className="text-sm text-slate-500 font-medium">Real-time agricultural business insights & sales analytics</p>
           </div>
-          <Link href="/farmer/dashboard/inventory/new">
-            <button className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold transition shadow-md shadow-emerald-600/10 hover:shadow active:scale-[0.98]">
-              ➕ Add New Product
-            </button>
-          </Link>
         </div>
+
+        {/* Analytics Interactive Filters (Farmer only) */}
+        {userRole === 'farmer' && (
+          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm mb-6 flex flex-wrap gap-4 items-center">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Order Type:</span>
+              <select
+                className="border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-705 outline-none bg-slate-50 transition focus:border-emerald-500"
+                value={orderType}
+                onChange={(e) => {
+                  setOrderType(e.target.value)
+                  if (e.target.value === 'live-counter') {
+                    setApartment('all')
+                  }
+                }}
+              >
+                <option value="all">All Sales (Pre-order & Stall)</option>
+                <option value="pre-order">Pre-Orders Only</option>
+                <option value="live-counter">Stall Sales Only</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Timeframe:</span>
+              <select
+                className="border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-705 outline-none bg-slate-50 transition focus:border-emerald-500"
+                value={timeframe}
+                onChange={(e) => setTimeframe(e.target.value)}
+              >
+                <option value="weekly">Weekly (Last 7 Days)</option>
+                <option value="monthly">Monthly (Last 30 Days)</option>
+                <option value="yearly">Yearly (Last 12 Months)</option>
+              </select>
+            </div>
+
+            {orderType !== 'live-counter' && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Apartment Name:</span>
+                <select
+                  className="border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-705 outline-none bg-slate-50 transition focus:border-emerald-500"
+                  value={apartment}
+                  onChange={(e) => setApartment(e.target.value)}
+                >
+                  <option value="all">All Apartments</option>
+                  {apartmentsList.map((apt) => (
+                    <option key={apt.id} value={apt.name}>
+                      {apt.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
 
         {loading ? (
           <div className="flex h-64 items-center justify-center">
@@ -147,8 +233,12 @@ export default function FarmerDashboard() {
               {/* Daily revenue area chart */}
               <Card hoverEffect={false} className="bg-white border border-slate-100 shadow-md p-6 lg:col-span-2 space-y-4">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-400">Weekly Revenue Trends</h3>
-                  <span className="text-xs font-bold text-slate-400 bg-slate-50 border border-slate-100 px-3 py-1 rounded-lg">Last 7 Days</span>
+                  <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-400">
+                    {timeframe === 'weekly' ? 'Weekly' : timeframe === 'monthly' ? 'Monthly' : 'Yearly'} Revenue Trends
+                  </h3>
+                  <span className="text-xs font-bold text-slate-400 bg-slate-50 border border-slate-100 px-3 py-1 rounded-lg">
+                    {timeframe === 'weekly' ? 'Last 7 Days' : timeframe === 'monthly' ? 'Last 30 Days' : 'Last 12 Months'}
+                  </span>
                 </div>
 
                 <div className="w-full h-80 pt-4">

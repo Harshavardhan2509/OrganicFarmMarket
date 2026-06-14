@@ -8,66 +8,172 @@ import prisma from '@/lib/db'
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session || (session.user as any).role !== 'farmer') {
-      return NextResponse.json({ error: 'Unauthorized. Farmers only.' }, { status: 401 })
+    if (!session || !['farmer', 'salesperson'].includes((session.user as any).role)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const farmerId = (session.user as any).id
+    const userRole = (session.user as any).role
+    const userId = (session.user as any).id
 
-    // 1. Get total sales count and total revenue
+    // Get filter query parameters
+    const searchParams = request.nextUrl.searchParams
+    let orderType = searchParams.get('orderType') || 'all' // all, pre-order, live-counter
+    const timeframe = searchParams.get('timeframe') || 'weekly' // weekly, monthly, yearly
+    const apartment = searchParams.get('apartment') || 'all' // all, [apartment name]
+
+    // Sales person is strictly limited to live-counter
+    if (userRole === 'salesperson') {
+      orderType = 'live-counter'
+    }
+
+    // 1. Get sales.
+    // If the role is farmer, only get sales where the sale record belongs to the farmer.
+    // If the role is salesperson, salespeople see all stall sales.
+    let salesWhereClause: any = {}
+    if (userRole === 'farmer') {
+      salesWhereClause.farmerId = userId
+    }
+
+    // Filter by orderType
+    if (orderType !== 'all') {
+      salesWhereClause.order = {
+        orderType: orderType
+      }
+    }
+
+    // Filter by apartment (only for pre-orders)
+    if (orderType !== 'live-counter' && apartment !== 'all') {
+      salesWhereClause.order = {
+        ...salesWhereClause.order,
+        stallName: apartment
+      }
+    }
+
     const sales = await prisma.sale.findMany({
-      where: { farmerId },
+      where: salesWhereClause,
       include: {
         order: {
           select: {
-            status: true
+            status: true,
+            orderType: true,
+            stallName: true,
+            createdAt: true
           }
         }
       },
       orderBy: { date: 'asc' }
     })
 
-    const totalRevenue = sales.reduce((sum, sale) => sum + sale.amount, 0)
-    const activeOrdersCount = sales.filter(sale => sale.order.status !== 'completed' && sale.order.status !== 'cancelled').length
-
-    // 2. Sales by day (for Recharts AreaChart)
-    // We group sales by date formatted as YYYY-MM-DD
-    const salesByDayMap = new Map<string, number>()
-    
-    // Seed last 7 days with 0 so the chart looks nice even if there are no sales
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date()
-      d.setDate(d.getDate() - i)
-      const dateStr = d.toISOString().split('T')[0]
-      salesByDayMap.set(dateStr, 0)
+    // Apply Timeframe filter in memory to keep it extremely simple and consistent
+    const now = new Date()
+    let startDate = new Date()
+    if (timeframe === 'weekly') {
+      startDate.setDate(now.getDate() - 7)
+    } else if (timeframe === 'monthly') {
+      startDate.setDate(now.getDate() - 30)
+    } else if (timeframe === 'yearly') {
+      startDate.setFullYear(now.getFullYear() - 1)
     }
 
-    sales.forEach(sale => {
-      const dateStr = sale.date.toISOString().split('T')[0]
-      if (salesByDayMap.has(dateStr)) {
-        salesByDayMap.set(dateStr, salesByDayMap.get(dateStr)! + sale.amount)
-      } else {
-        salesByDayMap.set(dateStr, sale.amount)
-      }
+    const filteredSales = sales.filter(sale => {
+      const saleDate = new Date(sale.date)
+      return saleDate >= startDate
     })
 
-    const salesHistory = Array.from(salesByDayMap.entries()).map(([date, revenue]) => ({
-      date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      revenue
-    }))
+    const totalRevenue = filteredSales.reduce((sum, sale) => sum + sale.amount, 0)
+    const activeOrdersCount = filteredSales.filter(sale => sale.order.status !== 'completed' && sale.order.status !== 'cancelled').length
+
+    // 2. Sales History (chart data)
+    const salesHistoryMap = new Map<string, number>()
+
+    if (timeframe === 'yearly') {
+      // Seed last 12 months with 0
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date()
+        d.setMonth(d.getMonth() - i)
+        const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` // YYYY-MM
+        salesHistoryMap.set(yearMonth, 0)
+      }
+
+      filteredSales.forEach(sale => {
+        const saleDate = new Date(sale.date)
+        const yearMonth = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}`
+        if (salesHistoryMap.has(yearMonth)) {
+          salesHistoryMap.set(yearMonth, salesHistoryMap.get(yearMonth)! + sale.amount)
+        }
+      })
+
+      var salesHistory = Array.from(salesHistoryMap.entries()).map(([ym, revenue]) => {
+        const [year, month] = ym.split('-')
+        const dateObj = new Date(parseInt(year), parseInt(month) - 1, 1)
+        return {
+          date: dateObj.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+          revenue
+        }
+      })
+    } else {
+      // Weekly or Monthly (seed by day)
+      const daysCount = timeframe === 'monthly' ? 30 : 7
+      for (let i = daysCount - 1; i >= 0; i--) {
+        const d = new Date()
+        d.setDate(d.getDate() - i)
+        const dateStr = d.toISOString().split('T')[0]
+        salesHistoryMap.set(dateStr, 0)
+      }
+
+      filteredSales.forEach(sale => {
+        const saleDate = new Date(sale.date)
+        const dateStr = saleDate.toISOString().split('T')[0]
+        if (salesHistoryMap.has(dateStr)) {
+          salesHistoryMap.set(dateStr, salesHistoryMap.get(dateStr)! + sale.amount)
+        }
+      })
+
+      var salesHistory = Array.from(salesHistoryMap.entries()).map(([date, revenue]) => ({
+        date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        revenue
+      }))
+    }
 
     // 3. Sales by Product (top products category analysis)
-    // Let's query products and aggregate how much revenue each generated
+    // Find all products. If farmer, restrict to their own. If salesperson, query all.
     const products = await prisma.product.findMany({
-      where: { farmerId },
+      where: userRole === 'farmer' ? { farmerId: userId } : {},
       include: {
-        orderItems: true
+        orderItems: {
+          include: {
+            order: {
+              select: {
+                createdAt: true,
+                orderType: true,
+                stallName: true
+              }
+            }
+          }
+        }
       }
     })
 
     const productSalesData = products.map(prod => {
-      const quantitySold = prod.orderItems.reduce((sum, item) => sum + item.quantity, 0)
-      const revenue = quantitySold * prod.price
+      // Filter orderItems that match the current timeframe, orderType, and apartment filters
+      const matchingItems = prod.orderItems.filter(item => {
+        const orderDate = new Date(item.order.createdAt)
+        if (orderDate < startDate) return false
+
+        if (orderType !== 'all') {
+          if (item.order.orderType !== orderType) return false
+        }
+
+        if (orderType !== 'live-counter' && apartment !== 'all') {
+          if (item.order.stallName !== apartment) return false
+        }
+
+        return true
+      })
+
+      const quantitySold = matchingItems.reduce((sum, item) => sum + item.quantity, 0)
+      const revenue = matchingItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+
       return {
         name: prod.name,
         quantity: quantitySold,
@@ -76,20 +182,51 @@ export async function GET(request: NextRequest) {
       }
     }).sort((a, b) => b.revenue - a.revenue)
 
-    // 4. Low stock items (quantity <= 5)
-    const lowStockItems = products
-      .filter(prod => prod.quantity <= 5)
-      .map(prod => ({
-        id: prod.id,
-        name: prod.name,
-        quantity: prod.quantity,
-        category: prod.category
-      }))
+    // 4. Low stock items (alert for individual unit sizes separately if stock <= 5)
+    const lowStockItems: any[] = []
+    products.forEach(prod => {
+      if (prod.unitSizes) {
+        try {
+          const sizes = JSON.parse(prod.unitSizes) as Array<{ id: string; size: string; price: number; quantity: number }>
+          sizes.forEach(s => {
+            if (s.quantity <= 5) {
+              lowStockItems.push({
+                id: `${prod.id}-${s.id}`,
+                productId: prod.id,
+                name: `${prod.name} (${s.size})`,
+                quantity: s.quantity,
+                category: prod.category
+              })
+            }
+          })
+        } catch {
+          if (prod.quantity <= 5) {
+            lowStockItems.push({
+              id: prod.id,
+              productId: prod.id,
+              name: prod.name,
+              quantity: prod.quantity,
+              category: prod.category
+            })
+          }
+        }
+      } else {
+        if (prod.quantity <= 5) {
+          lowStockItems.push({
+            id: prod.id,
+            productId: prod.id,
+            name: prod.name,
+            quantity: prod.quantity,
+            category: prod.category
+          })
+        }
+      }
+    })
 
     return NextResponse.json({
       summary: {
         totalRevenue,
-        totalSalesCount: sales.length,
+        totalSalesCount: filteredSales.length,
         activeOrdersCount,
         lowStockAlertCount: lowStockItems.length
       },
