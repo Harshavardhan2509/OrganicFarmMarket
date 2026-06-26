@@ -123,11 +123,11 @@ export default function FarmerDashboard() {
 
         {/* Analytics Interactive Filters (Farmer only) */}
         {userRole === 'farmer' && (
-          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm mb-6 flex flex-wrap gap-4 items-center">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Order Type:</span>
+          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm mb-6 grid grid-cols-1 sm:flex sm:flex-wrap gap-3 sm:gap-4 items-center">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 shrink-0">Order Type:</span>
               <select
-                className="border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-705 outline-none bg-slate-50 transition focus:border-emerald-500"
+                className="w-full sm:w-auto border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 outline-none bg-slate-50 transition focus:border-emerald-500"
                 value={orderType}
                 onChange={(e) => {
                   setOrderType(e.target.value)
@@ -142,10 +142,10 @@ export default function FarmerDashboard() {
               </select>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Timeframe:</span>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 shrink-0">Timeframe:</span>
               <select
-                className="border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-705 outline-none bg-slate-50 transition focus:border-emerald-500"
+                className="w-full sm:w-auto border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 outline-none bg-slate-50 transition focus:border-emerald-500"
                 value={timeframe}
                 onChange={(e) => setTimeframe(e.target.value)}
               >
@@ -156,10 +156,10 @@ export default function FarmerDashboard() {
             </div>
 
             {orderType !== 'live-counter' && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Apartment Name:</span>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 shrink-0">Apartment Name:</span>
                 <select
-                  className="border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-705 outline-none bg-slate-50 transition focus:border-emerald-500"
+                  className="w-full sm:w-auto border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 outline-none bg-slate-50 transition focus:border-emerald-500"
                   value={apartment}
                   onChange={(e) => setApartment(e.target.value)}
                 >
@@ -293,13 +293,14 @@ export default function FarmerDashboard() {
 
             {/* Alerts Table lists */}
             {lowStock.length > 0 && (
-              <Card hoverEffect={false} className="bg-white border border-rose-100 shadow-md shadow-rose-50/50 p-6 space-y-4">
+              <Card hoverEffect={false} className="bg-white border border-rose-100 shadow-md shadow-rose-50/50 p-4 sm:p-6 space-y-4">
                 <h3 className="text-sm font-extrabold uppercase tracking-wider text-rose-500 flex items-center gap-2">
                   <span>⚠️</span>
                   <span>Low Stock Warnings</span>
                 </h3>
 
-                <div className="overflow-x-auto rounded-xl border border-slate-100">
+                {/* Desktop/Tablet Table layout */}
+                <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-100">
                   <table className="w-full border-collapse text-left text-xs">
                     <thead className="bg-slate-50 text-slate-400 font-bold uppercase border-b border-slate-100">
                       <tr>
@@ -326,6 +327,35 @@ export default function FarmerDashboard() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Mobile Cards layout */}
+                <div className="block md:hidden space-y-3">
+                  {lowStock.map((prod) => (
+                    <div key={prod.id} className="bg-white border border-slate-100 rounded-2xl p-4 space-y-3 font-semibold text-xs relative">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 block mb-0.5">Product Name</span>
+                          <span className="font-bold text-slate-900 text-sm">{prod.name}</span>
+                        </div>
+                        <Link href={`/farmer/dashboard/inventory/${prod.id}`}>
+                          <button className="text-xxs uppercase tracking-wider font-extrabold text-emerald-600 hover:text-emerald-705 border border-emerald-200 px-3 py-1.5 rounded-lg hover:bg-emerald-50 transition">
+                            Restock
+                          </button>
+                        </Link>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+                        <div>
+                          <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 block mb-0.5">Category</span>
+                          <span className="text-slate-700">{prod.category}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 block mb-0.5">Stock Remaining</span>
+                          <span className="text-rose-600 font-black">{prod.quantity} Units left</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </Card>
             )}

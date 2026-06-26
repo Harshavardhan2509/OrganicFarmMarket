@@ -143,7 +143,8 @@ export default function Navbar() {
     }`
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b border-slate-100 bg-white/85 backdrop-blur-md shadow-sm shadow-slate-100/30">
+    <>
+      <nav className="fixed top-0 left-0 right-0 z-50 w-full border-b border-slate-100 bg-white shadow-sm shadow-slate-100/30">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 justify-between items-center">
           {/* Logo & Desktop Nav Links */}
@@ -378,8 +379,8 @@ export default function Navbar() {
                 )}
 
                 {/* Profile Name Block */}
-                <div className="flex items-center gap-2 sm:gap-3 border-l border-slate-100 pl-2 sm:pl-4">
-                  <div className="hidden sm:flex sm:flex-col sm:items-end">
+                <div className="hidden lg:flex lg:items-center lg:gap-3 lg:border-l lg:border-slate-100 lg:pl-4">
+                  <div className="flex flex-col items-end">
                     <span className="text-sm font-bold text-slate-900 leading-tight truncate max-w-[150px]">
                       {user?.name}
                     </span>
@@ -397,7 +398,7 @@ export default function Navbar() {
 
                   <button
                     onClick={handleLogout}
-                    className="hidden sm:block rounded-lg border border-slate-200 hover:border-rose-200 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 px-3 py-1.5 text-xs font-bold shadow-sm transition active:scale-[0.98]"
+                    className="rounded-lg border border-slate-200 hover:border-rose-200 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 px-3 py-1.5 text-xs font-bold shadow-sm transition active:scale-[0.98]"
                   >
                     Logout
                   </button>
@@ -601,5 +602,7 @@ export default function Navbar() {
         </div>
       )}
       </nav>
+      <div className="h-16 w-full shrink-0"></div>
+    </>
   )
 }

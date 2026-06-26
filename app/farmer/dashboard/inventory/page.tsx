@@ -268,139 +268,259 @@ export default function InventoryPage() {
           </div>
         ) : (
           <Card hoverEffect={false} className="bg-white border border-slate-100 shadow-md p-6">
-            <Table headers={isSalesperson ? ['Product Details', 'Category', 'Unit Price', 'Stock Level'] : ['Product Details', 'Category', 'Unit Price', 'Stock Level', 'Actions']}>
-              {products.map((prod) => (
-                <tr key={prod.id} className="hover:bg-slate-50/50 transition">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-xl border border-emerald-100 overflow-hidden shrink-0">
-                        {(() => {
-                          if (!prod.image) return null;
-                          let displayImg = prod.image;
-                          if (prod.image.startsWith('[')) {
-                            try {
-                              const parsed = JSON.parse(prod.image);
-                              if (Array.isArray(parsed) && parsed.length > 0) {
-                                displayImg = parsed[0];
-                              }
-                            } catch {}
-                          }
-                          return displayImg ? (
-                            <img src={displayImg} alt={prod.name} className="w-full h-full object-cover" />
-                          ) : null;
-                        })()}
-                        {!prod.image && (
-                          <>
-                            {prod.category === 'Fruits' && '🍎'}
-                            {prod.category === 'Vegetables' && '🥦'}
-                            {prod.category === 'Grains' && '🌾'}
-                            {prod.category === 'Dairy' && '🥛'}
-                            {prod.category === 'Honey & Jams' && '🍯'}
-                            {prod.category === 'Herbs & Spices' && '🌿'}
-                            {prod.category === 'Meat' && '🥩'}
-                            {!['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Honey & Jams', 'Herbs & Spices', 'Meat'].includes(prod.category) && '🌱'}
-                          </>
-                        )}
-                      </div>
-                      <div>
-                        <span className="font-bold text-slate-900 block">{prod.name}</span>
-                        <span className="text-xxs font-mono uppercase text-slate-400">ID: {prod.id}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <Badge variant="info">
-                      {prod.category}
-                    </Badge>
-                  </td>
-                  <td className="px-6 py-4 text-sm font-black text-slate-950">
-                    {(() => {
-                      let sizes: any[] = []
-                      if (prod.unitSizes) {
-                        try {
-                          sizes = JSON.parse(prod.unitSizes)
-                        } catch {}
-                      }
-                      if (sizes && sizes.length > 0) {
-                        return (
-                          <div className="space-y-1.5 text-xs font-semibold">
-                            {sizes.map((s: any) => (
-                              <div key={s.id} className="flex items-center gap-1.5">
-                                <span className="text-slate-450 font-bold">{s.size}:</span>
-                                <span className="text-slate-900 font-black">₹{parseFloat(s.price).toFixed(2)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )
-                      }
-                      return `₹${prod.price.toFixed(2)}`
-                    })()}
-                  </td>
-                  <td className="px-6 py-4">
-                    {(() => {
-                      let sizes: any[] = []
-                      if (prod.unitSizes) {
-                        try {
-                          sizes = JSON.parse(prod.unitSizes)
-                        } catch {}
-                      }
-                      if (sizes && sizes.length > 0) {
-                        return (
-                          <div className="space-y-1.5 text-xs font-semibold">
-                            {sizes.map((s: any) => (
-                              <div key={s.id} className="flex items-center gap-1.5">
-                                <span className="text-slate-500 font-bold">{s.size}:</span>
-                                <span className={`font-black ${s.quantity === 0 ? 'text-rose-600' : s.quantity <= 5 ? 'text-amber-600' : 'text-slate-900'}`}>
-                                  {s.quantity}
-                                </span>
-                                {s.quantity === 0 ? (
-                                  <Badge variant="danger" className="text-[9px] px-1 py-0 font-extrabold uppercase">Out</Badge>
-                                ) : s.quantity <= 5 ? (
-                                  <Badge variant="warning" className="text-[9px] px-1 py-0 font-extrabold uppercase">Low</Badge>
-                                ) : (
-                                  <Badge variant="success" className="text-[9px] px-1 py-0 font-extrabold uppercase">OK</Badge>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )
-                      }
-                      return (
-                        <div className="flex items-center gap-2">
-                          <span className={`text-sm font-black ${prod.quantity === 0 ? 'text-rose-600' : prod.quantity <= 5 ? 'text-amber-600' : 'text-slate-900'}`}>
-                            {prod.quantity}
-                          </span>
-                          {prod.quantity === 0 ? (
-                            <Badge variant="danger" className="text-xxs">Out of Stock</Badge>
-                          ) : prod.quantity <= 5 ? (
-                            <Badge variant="warning" className="text-xxs">Low Stock</Badge>
-                          ) : (
-                            <Badge variant="success" className="text-xxs">Available</Badge>
-                          )}
-                        </div>
-                      )
-                    })()}
-                  </td>
-                  {!isSalesperson && (
+            {/* Desktop / Tablet view */}
+            <div className="hidden md:block">
+              <Table headers={isSalesperson ? ['Product Details', 'Category', 'Unit Price', 'Stock Level'] : ['Product Details', 'Category', 'Unit Price', 'Stock Level', 'Actions']}>
+                {products.map((prod) => (
+                  <tr key={prod.id} className="hover:bg-slate-50/50 transition">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <Link href={`/farmer/dashboard/inventory/${prod.id}`}>
-                          <button className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition">
-                            Edit
+                        <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-xl border border-emerald-100 overflow-hidden shrink-0">
+                          {(() => {
+                            if (!prod.image) return null;
+                            let displayImg = prod.image;
+                            if (prod.image.startsWith('[')) {
+                              try {
+                                const parsed = JSON.parse(prod.image);
+                                if (Array.isArray(parsed) && parsed.length > 0) {
+                                  displayImg = parsed[0];
+                                }
+                              } catch {}
+                            }
+                            return displayImg ? (
+                              <img src={displayImg} alt={prod.name} className="w-full h-full object-cover" />
+                            ) : null;
+                          })()}
+                          {!prod.image && (
+                            <>
+                              {prod.category === 'Fruits' && '🍎'}
+                              {prod.category === 'Vegetables' && '🥦'}
+                              {prod.category === 'Grains' && '🌾'}
+                              {prod.category === 'Dairy' && '🥛'}
+                              {prod.category === 'Honey & Jams' && '🍯'}
+                              {prod.category === 'Herbs & Spices' && '🌿'}
+                              {prod.category === 'Meat' && '🥩'}
+                              {!['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Honey & Jams', 'Herbs & Spices', 'Meat'].includes(prod.category) && '🌱'}
+                            </>
+                          )}
+                        </div>
+                        <div>
+                          <span className="font-bold text-slate-900 block">{prod.name}</span>
+                          <span className="text-xxs font-mono uppercase text-slate-400">ID: {prod.id}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <Badge variant="info">
+                        {prod.category}
+                      </Badge>
+                    </td>
+                    <td className="px-6 py-4 text-sm font-black text-slate-955">
+                      {(() => {
+                        let sizes: any[] = []
+                        if (prod.unitSizes) {
+                          try {
+                            sizes = JSON.parse(prod.unitSizes)
+                          } catch {}
+                        }
+                        if (sizes && sizes.length > 0) {
+                          return (
+                            <div className="space-y-1.5 text-xs font-semibold">
+                              {sizes.map((s: any) => (
+                                <div key={s.id} className="flex items-center gap-1.5">
+                                  <span className="text-slate-450 font-bold">{s.size}:</span>
+                                  <span className="text-slate-900 font-black">₹{parseFloat(s.price).toFixed(2)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        }
+                        return `₹${prod.price.toFixed(2)}`
+                      })()}
+                    </td>
+                    <td className="px-6 py-4">
+                      {(() => {
+                        let sizes: any[] = []
+                        if (prod.unitSizes) {
+                          try {
+                            sizes = JSON.parse(prod.unitSizes)
+                          } catch {}
+                        }
+                        if (sizes && sizes.length > 0) {
+                          return (
+                            <div className="space-y-1.5 text-xs font-semibold">
+                              {sizes.map((s: any) => (
+                                <div key={s.id} className="flex items-center gap-1.5">
+                                  <span className="text-slate-500 font-bold">{s.size}:</span>
+                                  <span className={`font-black ${s.quantity === 0 ? 'text-rose-600' : s.quantity <= 5 ? 'text-amber-600' : 'text-slate-900'}`}>
+                                    {s.quantity}
+                                  </span>
+                                  {s.quantity === 0 ? (
+                                    <Badge variant="danger" className="text-[9px] px-1 py-0 font-extrabold uppercase">Out</Badge>
+                                  ) : s.quantity <= 5 ? (
+                                    <Badge variant="warning" className="text-[9px] px-1 py-0 font-extrabold uppercase">Low</Badge>
+                                  ) : (
+                                    <Badge variant="success" className="text-[9px] px-1 py-0 font-extrabold uppercase">OK</Badge>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        }
+                        return (
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-black ${prod.quantity === 0 ? 'text-rose-600' : prod.quantity <= 5 ? 'text-amber-600' : 'text-slate-900'}`}>
+                              {prod.quantity}
+                            </span>
+                            {prod.quantity === 0 ? (
+                              <Badge variant="danger" className="text-xxs">Out of Stock</Badge>
+                            ) : prod.quantity <= 5 ? (
+                              <Badge variant="warning" className="text-xxs">Low Stock</Badge>
+                            ) : (
+                              <Badge variant="success" className="text-xxs">Available</Badge>
+                            )}
+                          </div>
+                        )
+                      })()}
+                    </td>
+                    {!isSalesperson && (
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <Link href={`/farmer/dashboard/inventory/${prod.id}`}>
+                            <button className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition">
+                              Edit
+                            </button>
+                          </Link>
+                          <button
+                            onClick={() => handleDelete(prod.id, prod.name)}
+                            className="text-xs font-bold text-rose-600 hover:text-rose-700 transition"
+                          >
+                            Delete
                           </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </Table>
+            </div>
+
+            {/* Mobile Card list view */}
+            <div className="block md:hidden space-y-4">
+              {products.map((prod) => {
+                let sizes: any[] = []
+                if (prod.unitSizes) {
+                  try {
+                    sizes = JSON.parse(prod.unitSizes)
+                  } catch {}
+                }
+                const hasSizes = sizes && sizes.length > 0
+                return (
+                  <div key={prod.id} className="bg-white border border-slate-100 rounded-2xl p-4 space-y-3 font-semibold text-xs relative">
+                    <div className="flex items-center gap-3 justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-xl border border-emerald-100 overflow-hidden shrink-0">
+                          {(() => {
+                            if (!prod.image) return null;
+                            let displayImg = prod.image;
+                            if (prod.image.startsWith('[')) {
+                              try {
+                                const parsed = JSON.parse(prod.image);
+                                if (Array.isArray(parsed) && parsed.length > 0) {
+                                  displayImg = parsed[0];
+                                }
+                              } catch {}
+                            }
+                            return displayImg ? (
+                              <img src={displayImg} alt={prod.name} className="w-full h-full object-cover" />
+                            ) : null;
+                          })()}
+                          {!prod.image && (
+                            <>
+                              {prod.category === 'Fruits' && '🍎'}
+                              {prod.category === 'Vegetables' && '🥦'}
+                              {prod.category === 'Grains' && '🌾'}
+                              {prod.category === 'Dairy' && '🥛'}
+                              {prod.category === 'Honey & Jams' && '🍯'}
+                              {prod.category === 'Herbs & Spices' && '🌿'}
+                              {prod.category === 'Meat' && '🥩'}
+                              {!['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Honey & Jams', 'Herbs & Spices', 'Meat'].includes(prod.category) && '🌱'}
+                            </>
+                          )}
+                        </div>
+                        <div>
+                          <span className="font-bold text-slate-900 block">{prod.name}</span>
+                          <span className="text-xxs font-mono uppercase text-slate-400">ID: {prod.id}</span>
+                        </div>
+                      </div>
+                      <Badge variant="info">{prod.category}</Badge>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+                      <div>
+                        <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 block mb-0.5">Unit Price</span>
+                        <span className="text-xs font-black text-slate-955">
+                          {hasSizes ? (
+                            <div className="space-y-1">
+                              {sizes.map((s: any) => (
+                                <div key={s.id} className="flex items-center gap-1">
+                                  <span className="text-slate-450 text-[10px]">{s.size}:</span>
+                                  <span>₹{parseFloat(s.price).toFixed(2)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            `₹${prod.price.toFixed(2)}`
+                          )}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 block mb-0.5">Stock Level</span>
+                        <span className="text-xs font-black">
+                          {hasSizes ? (
+                            <div className="space-y-1">
+                              {sizes.map((s: any) => (
+                                <div key={s.id} className="flex items-center gap-1">
+                                  <span className="text-slate-505 text-[10px]">{s.size}:</span>
+                                  <span className={s.quantity === 0 ? 'text-rose-600' : s.quantity <= 5 ? 'text-amber-600' : 'text-slate-900'}>
+                                    {s.quantity}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className={prod.quantity === 0 ? 'text-rose-600' : prod.quantity <= 5 ? 'text-amber-600' : 'text-slate-900'}>
+                                {prod.quantity}
+                              </span>
+                              {prod.quantity === 0 ? (
+                                <Badge variant="danger" className="text-[9px] px-1 py-0 font-extrabold uppercase">Out</Badge>
+                              ) : prod.quantity <= 5 ? (
+                                <Badge variant="warning" className="text-[9px] px-1 py-0 font-extrabold uppercase">Low</Badge>
+                              ) : null}
+                            </div>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+
+                    {!isSalesperson && (
+                      <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                        <Link href={`/farmer/dashboard/inventory/${prod.id}`} className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition">
+                          Edit
                         </Link>
                         <button
                           onClick={() => handleDelete(prod.id, prod.name)}
-                          className="text-xs font-bold text-rose-600 hover:text-rose-700 transition"
+                          className="text-xs font-bold text-rose-600 hover:text-rose-750 transition"
                         >
                           Delete
                         </button>
                       </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </Table>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </Card>
         )}
 
@@ -432,7 +552,7 @@ export default function InventoryPage() {
                         value={editCategoryName}
                         onChange={(e) => setEditCategoryName(e.target.value)}
                       />
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
                           <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">CGST (%)</label>
                           <input
@@ -488,7 +608,7 @@ export default function InventoryPage() {
                         value={newCategoryName}
                         onChange={(e) => setNewCategoryName(e.target.value)}
                       />
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
                           <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">CGST (%)</label>
                           <input
@@ -496,7 +616,7 @@ export default function InventoryPage() {
                             step="0.01"
                             min="0"
                             required
-                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-950 outline-none bg-white font-semibold"
+                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-955 outline-none bg-white font-semibold"
                             value={newCategoryCgst}
                             onChange={(e) => setNewCategoryCgst(e.target.value)}
                           />
@@ -508,7 +628,7 @@ export default function InventoryPage() {
                             step="0.01"
                             min="0"
                             required
-                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-950 outline-none bg-white font-semibold"
+                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-955 outline-none bg-white font-semibold"
                             value={newCategorySgst}
                             onChange={(e) => setNewCategorySgst(e.target.value)}
                           />
@@ -538,7 +658,7 @@ export default function InventoryPage() {
                   {categories.map((cat) => (
                     <div
                       key={cat.id}
-                      className="flex items-center justify-between bg-slate-50 border border-slate-100 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-800"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 border border-slate-100 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-800 gap-2"
                     >
                       <div className="flex flex-col">
                         <span>{cat.name}</span>
@@ -546,7 +666,7 @@ export default function InventoryPage() {
                           CGST: {cat.cgst || 0}% | SGST: {cat.sgst || 0}%
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 w-full sm:w-auto justify-end sm:justify-start">
                         {cat.name.toLowerCase() !== 'other' && (
                           <button
                             type="button"

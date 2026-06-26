@@ -300,17 +300,17 @@ export default function LiveCounterPage() {
   return (
     <ProtectedRoute allowedRoles={['farmer', 'salesperson']}>
       <Navbar />
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 flex-1 flex flex-col lg:h-[calc(100vh-64px)]">
+      <main className="mx-auto max-w-7xl px-2 py-4 sm:px-6 lg:px-8 flex-1 flex flex-col lg:h-[calc(100vh-64px)]">
         <div className="mb-6">
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Live Counter Point of Sale</h1>
+          <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Live Counter Point of Sale</h1>
           <p className="text-sm text-slate-500 font-semibold mt-1">
             Calculate customer bills dynamically, register customer details, and deduct inventory during physical market stalls.
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-12 gap-8 flex-1 lg:overflow-hidden min-h-0">
+        <div className="grid lg:grid-cols-12 gap-4 lg:gap-8 flex-1 lg:overflow-hidden min-h-0">
           {/* Left panel - Inventory Produce Selector */}
-          <div className="lg:col-span-7 flex flex-col lg:h-full bg-white border border-slate-100 rounded-3xl p-6 shadow-sm lg:overflow-hidden min-h-0">
+          <div className="lg:col-span-7 flex flex-col lg:h-full bg-white border border-slate-100 rounded-3xl p-4 sm:p-6 shadow-sm lg:overflow-hidden min-h-0">
             <div className="flex flex-col sm:flex-row gap-4 mb-6">
               <div className="flex-1">
                 <Input
@@ -349,7 +349,7 @@ export default function LiveCounterPage() {
                 <p className="text-sm font-bold">No stock found in this category.</p>
               </div>
             ) : (
-              <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pb-4 content-start">
+              <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3 pb-4 content-start">
                 {filteredProducts.map((product) => {
                   const sizes = getProductSizeDetails(product)
                   const hasSizes = sizes && sizes.length > 0
@@ -379,27 +379,27 @@ export default function LiveCounterPage() {
                     <Card
                       key={product.id}
                       hoverEffect={!outOfStock}
-                      className={`p-3.5 border border-slate-150 bg-white flex flex-col transition rounded-3xl h-full shadow-sm ${
+                      className={`p-3 border border-slate-150 bg-white flex flex-col transition rounded-3xl h-full shadow-sm ${
                         outOfStock ? 'opacity-60 bg-slate-50/50' : 'hover:border-emerald-300'
                       }`}
                     >
                       {/* Full-width image header container */}
-                      <div className="w-full h-28 bg-emerald-50/40 rounded-2xl flex items-center justify-center text-4xl mb-3 select-none overflow-hidden border border-slate-100 relative shrink-0">
+                      <div className="w-full h-20 sm:h-28 bg-emerald-50/40 rounded-2xl flex items-center justify-center text-3xl sm:text-4xl mb-3 select-none overflow-hidden border border-slate-100 relative shrink-0">
                         {/* Category pill overlaid top-left */}
-                        <div className="absolute top-2.5 left-2.5 z-10">
-                          <Badge variant="info" className="opacity-95 text-[9px] px-2 py-0.5 font-extrabold uppercase tracking-wider">
+                        <div className="absolute top-2 left-2 z-10">
+                          <Badge variant="info" className="opacity-95 text-[8px] sm:text-[9px] px-1.5 py-0.5 font-extrabold uppercase tracking-wider">
                             {product.category}
                           </Badge>
                         </div>
                         
                         {/* Stock Warning overlaid top-right */}
                         {outOfStock ? (
-                          <div className="absolute top-2.5 right-2.5 z-10">
-                            <Badge variant="danger" className="text-[9px] px-2 py-0.5 font-bold">Sold Out</Badge>
+                          <div className="absolute top-2 right-2 z-10">
+                            <Badge variant="danger" className="text-[8px] sm:text-[9px] px-1.5 py-0.5 font-bold">Sold Out</Badge>
                           </div>
                         ) : activeStock > 0 && activeStock <= 5 ? (
-                          <div className="absolute top-2.5 right-2.5 z-10">
-                            <Badge variant="warning" className="text-[9px] px-2 py-0.5 font-bold">Only {activeStock} Left</Badge>
+                          <div className="absolute top-2 right-2 z-10">
+                            <Badge variant="warning" className="text-[8px] sm:text-[9px] px-1.5 py-0.5 font-bold">Only {activeStock} Left</Badge>
                           </div>
                         ) : null}
 
@@ -433,18 +433,18 @@ export default function LiveCounterPage() {
 
                       <div className="flex-1 flex flex-col">
                         <div>
-                          <h3 className="font-extrabold text-slate-900 text-xs tracking-tight leading-snug line-clamp-1 mb-1.5" title={product.name}>
+                          <h3 className="font-extrabold text-slate-900 text-[11px] sm:text-xs tracking-tight leading-snug line-clamp-1 mb-1.5" title={product.name}>
                             {product.name}
                           </h3>
                           
                           {/* Dropdown for multiple unit sizes if defined */}
                           {hasSizes && (
-                            <div className="mt-1.5 mb-2">
+                            <div className="mt-1 mb-1.5">
                               <label className="block text-[8px] font-extrabold uppercase tracking-wider text-slate-400 mb-0.5">
                                 Select Unit Size
                               </label>
                               <select
-                                className="block w-full border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-semibold outline-none bg-white text-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                                className="block w-full border border-slate-200 rounded-lg px-1.5 py-0.5 sm:px-2 sm:py-1 text-[10px] sm:text-[11px] font-semibold outline-none bg-white text-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                                 value={selectedUnitSizes[product.id] || sizes![0].size}
                                 onChange={(e) => {
                                   setSelectedUnitSizes({
@@ -469,14 +469,14 @@ export default function LiveCounterPage() {
                                 <span className="block text-[8px] text-slate-400 font-extrabold uppercase">Unit Stocks:</span>
                                 <div className="flex flex-wrap gap-1 text-slate-700 font-bold">
                                   {sizes!.map(s => (
-                                    <span key={s.id} className="bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100/50 whitespace-nowrap">
+                                    <span key={s.id} className="bg-slate-50 px-1 py-0.5 rounded border border-slate-100/50 whitespace-nowrap text-[8px] sm:text-[9px]">
                                       {s.size}: <span className={s.quantity === 0 ? 'text-rose-600 font-bold' : 'text-slate-700 font-bold'}>{s.quantity}</span>
                                     </span>
                                   ))}
                                 </div>
                               </div>
                             ) : (
-                              <div>
+                              <div className="text-[8px] sm:text-[9px]">
                                 Stock: <span className="font-extrabold text-slate-700">{activeStock} units</span>
                               </div>
                             )}
@@ -484,28 +484,28 @@ export default function LiveCounterPage() {
                         </div>
 
                         {/* Bottom Rate & Cart action */}
-                        <div className="flex items-center justify-between pt-2.5 border-t border-slate-100 mt-auto">
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 mt-auto">
                           <div>
-                            <span className="text-[9px] uppercase tracking-wider font-extrabold text-slate-400 block leading-none">Rate</span>
-                            <span className="text-xs font-black text-slate-950 mt-1 block">₹{activePrice.toFixed(2)}</span>
+                            <span className="text-[8px] sm:text-[9px] uppercase tracking-wider font-extrabold text-slate-400 block leading-none">Rate</span>
+                            <span className="text-[10px] sm:text-xs font-black text-slate-950 mt-1 block">₹{activePrice.toFixed(2)}</span>
                           </div>
 
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 sm:gap-2">
                             {outOfStock ? (
-                              <Badge variant="danger" className="text-[9px] px-1.5 py-0.5 font-bold">Sold Out</Badge>
+                              <Badge variant="danger" className="text-[8px] sm:text-[9px] px-1.5 py-0.5 font-bold">Sold Out</Badge>
                             ) : cartQty > 0 ? (
-                              <div className="flex items-center gap-1.5 bg-emerald-50 rounded-lg p-0.5 border border-emerald-250">
+                              <div className="flex items-center gap-1 bg-emerald-50 rounded-lg p-0.5 border border-emerald-250">
                                 <button
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     updateCartQuantity(product.id, chosenUnitSizeName, cartQty - 1)
                                   }}
-                                  className="w-6 h-6 rounded bg-white border border-slate-200 text-emerald-700 font-extrabold flex items-center justify-center hover:bg-emerald-100 transition shadow-sm active:scale-95"
+                                  className="w-5 h-5 sm:w-6 sm:h-6 rounded bg-white border border-slate-200 text-emerald-700 font-extrabold flex items-center justify-center hover:bg-emerald-100 transition shadow-sm active:scale-95 text-[10px] sm:text-xs"
                                 >
                                   -
                                 </button>
-                                <span className="w-5 text-center text-[11px] font-black text-emerald-950 select-none">
+                                <span className="w-4 sm:w-5 text-center text-[9px] sm:text-[11px] font-black text-emerald-950 select-none">
                                   {cartQty}
                                 </span>
                                 <button
@@ -515,7 +515,7 @@ export default function LiveCounterPage() {
                                     e.stopPropagation()
                                     updateCartQuantity(product.id, chosenUnitSizeName, cartQty + 1)
                                   }}
-                                  className="w-6 h-6 rounded bg-white border border-slate-200 text-emerald-700 font-extrabold flex items-center justify-center hover:bg-emerald-100 transition shadow-sm active:scale-95 disabled:opacity-50"
+                                  className="w-5 h-5 sm:w-6 sm:h-6 rounded bg-white border border-slate-200 text-emerald-700 font-extrabold flex items-center justify-center hover:bg-emerald-100 transition shadow-sm active:scale-95 disabled:opacity-50 text-[10px] sm:text-xs"
                                 >
                                   +
                                 </button>
@@ -524,9 +524,9 @@ export default function LiveCounterPage() {
                               <button
                                 type="button"
                                 onClick={() => addToCart(product, 1)}
-                                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center text-xs font-bold transition active:scale-[0.95] shadow-md shadow-emerald-600/10"
+                                className="px-2 py-1.5 sm:px-3 sm:py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center text-[10px] sm:text-xs font-bold transition active:scale-[0.95] shadow-md shadow-emerald-600/10"
                               >
-                                Add to Cart
+                                Add
                               </button>
                             )}
                           </div>
@@ -540,7 +540,7 @@ export default function LiveCounterPage() {
           </div>
 
           {/* Right panel - Billing Engine */}
-          <div className="lg:col-span-5 flex flex-col lg:h-full bg-white border border-slate-100 rounded-3xl p-6 shadow-sm lg:overflow-hidden min-h-0">
+          <div className="lg:col-span-5 flex flex-col lg:h-full bg-white border border-slate-100 rounded-3xl p-4 sm:p-6 shadow-sm lg:overflow-hidden min-h-0">
             <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-4 block">Active Stall Cart</span>
 
             {/* Scrollable Cart items */}

@@ -3,8 +3,8 @@ import Link from 'next/link'
 export default function Home() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
-      {/* Premium Glassmorphism Navigation Bar */}
-      <header className="sticky top-0 z-50 w-full border-b border-slate-100 bg-white/75 backdrop-blur-md px-4 sm:px-6 lg:px-8 shadow-sm shadow-slate-100/35">
+      {/* Premium Navigation Bar */}
+      <header className="fixed top-0 left-0 right-0 z-50 w-full border-b border-slate-100 bg-white px-4 sm:px-6 lg:px-8 shadow-sm shadow-slate-100/35">
         <div className="mx-auto max-w-7xl flex h-16 items-center justify-between">
           <div className="flex items-center gap-2 text-xl font-extrabold tracking-tight text-emerald-800">
             <span className="text-2xl animate-pulse">🌱</span>
@@ -12,6 +12,7 @@ export default function Home() {
           </div>
         </div>
       </header>
+      <div className="h-16 w-full shrink-0"></div>
 
       {/* Hero Section */}
       <main className="flex-1">

@@ -78,7 +78,7 @@ export default function BillingSettingsPage() {
       
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 flex-1">
         <div className="mb-8">
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Receipt Template Settings</h1>
+          <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Receipt Template Settings</h1>
           <p className="text-sm text-slate-500 font-medium mt-1">
             Customize the invoice layout, headers, footers, and sizes printed by smaller supermarket thermal printers.
           </p>
@@ -172,14 +172,14 @@ export default function BillingSettingsPage() {
                   </p>
                 </div>
 
-                <div className="flex gap-3 pt-2">
-                  <Button type="submit" className="flex-1">
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <Button type="submit" className="w-full sm:flex-1">
                     💾 Save Configurations
                   </Button>
                   <button
                     type="button"
                     onClick={handleResetSettings}
-                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-sm transition"
+                    className="w-full sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-sm transition text-center"
                   >
                     Reset Defaults
                   </button>
@@ -189,15 +189,15 @@ export default function BillingSettingsPage() {
           </div>
 
           {/* Live Receipt Preview Widget */}
-          <div className="lg:col-span-6 flex flex-col items-center">
+          <div className="lg:col-span-6 flex flex-col items-center w-full max-w-full">
             <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-4 block">
               Live Thermal Printer Preview
             </span>
             
             {/* Mock thermal paper background */}
-            <div className="bg-slate-300/40 border border-slate-200/60 rounded-3xl p-6 shadow-inner flex justify-center w-full min-h-[500px]">
+            <div className="bg-slate-300/40 border border-slate-200/60 rounded-3xl p-4 sm:p-6 shadow-inner flex justify-center w-full min-h-[500px] max-w-full overflow-x-auto">
               <div
-                className={`bg-white text-black shadow-lg p-5 font-mono text-[11px] h-fit transition-all duration-300 leading-normal border-t-[8px] border-emerald-650 ${previewWidthClass}`}
+                className={`bg-white text-black shadow-lg p-5 font-mono text-[11px] h-fit transition-all duration-300 leading-normal border-t-[8px] border-emerald-650 shrink-0 ${previewWidthClass}`}
                 style={{ fontFamily: 'monospace' }}
               >
                 {/* Header preview */}

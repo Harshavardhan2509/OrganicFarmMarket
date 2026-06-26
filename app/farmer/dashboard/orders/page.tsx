@@ -110,7 +110,7 @@ export default function FarmerOrdersPage() {
         ) : (
           <div className="space-y-6">
             {orders.map((order) => (
-              <Card key={order.id} hoverEffect={false} className="bg-white border border-slate-100 shadow-md p-6">
+              <Card key={order.id} hoverEffect={false} className="bg-white border border-slate-100 shadow-md p-4 sm:p-6">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b border-slate-50 pb-4 gap-4">
                   <div>
                     <div className="flex items-center gap-3">
@@ -125,7 +125,7 @@ export default function FarmerOrdersPage() {
                   </div>
 
                   {/* Fulfillment controls */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       size="sm"
                       variant="outline"
@@ -173,7 +173,7 @@ export default function FarmerOrdersPage() {
                   </div>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-6 pt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 pt-4">
                   {/* Customer credentials */}
                   <div className="space-y-2.5 font-semibold text-xs text-slate-500">
                     <span className="text-xxs uppercase tracking-wider font-extrabold text-slate-400 block leading-none">Customer Contact</span>

@@ -206,7 +206,7 @@ export default function CustomerDashboard() {
         } else {
           guestCart.push({ productId, quantity: newQty, unitSize })
         }
-        setToastMessage(`Updated ${product.name} quantity in guest cart! 🛒`)
+        setToastMessage(`${product.name} added to cart! 🛒`)
       }
       localStorage.setItem('guestCart', JSON.stringify(guestCart))
       setCartItems(guestCart)
@@ -237,7 +237,7 @@ export default function CustomerDashboard() {
           body: JSON.stringify({ productId, quantity: newQty, unitSize, relative: false }),
         })
         if (res.ok) {
-          setToastMessage(`Updated ${product.name} quantity! 🛒`)
+          setToastMessage(`${product.name} added to cart! 🛒`)
           setTimeout(() => setToastMessage(null), 3000)
           await fetchCartItems()
         } else {
@@ -369,7 +369,7 @@ export default function CustomerDashboard() {
 
         {/* Products Grid */}
         {loading ? (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
             {[...Array(8)].map((_, idx) => (
               <div key={idx} className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm space-y-4 animate-pulse">
                 <div className="w-full h-44 bg-slate-100 rounded-xl"></div>
@@ -391,7 +391,7 @@ export default function CustomerDashboard() {
             </p>
           </div>
         ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
             {products.map((prod) => {
               let sizes: any[] = []
               if (prod.unitSizes) {
@@ -429,7 +429,7 @@ export default function CustomerDashboard() {
 
                   {/* Image Placeholder / Product Image */}
                   <Link href={`/customer/dashboard/products/${prod.id}`} className="block overflow-hidden rounded-2xl">
-                    <div className="w-full h-44 bg-emerald-50/50 rounded-2xl flex items-center justify-center text-5xl mb-4 select-none transition group-hover:scale-[1.02] overflow-hidden border border-slate-100">
+                    <div className="w-full h-28 sm:h-44 bg-emerald-50/50 rounded-2xl flex items-center justify-center text-3xl sm:text-5xl mb-3 sm:mb-4 select-none transition group-hover:scale-[1.02] overflow-hidden border border-slate-100">
                       {(() => {
                         if (!prod.image) return null;
                         let displayImg = prod.image;
@@ -461,7 +461,7 @@ export default function CustomerDashboard() {
 
                   <div className="flex-1 flex flex-col">
                     <Link href={`/customer/dashboard/products/${prod.id}`}>
-                      <h3 className="text-base font-extrabold text-slate-900 tracking-tight leading-snug line-clamp-1 mb-1 mt-1 hover:text-emerald-700 transition">
+                      <h3 className="text-xs sm:text-base font-extrabold text-slate-900 tracking-tight leading-snug line-clamp-1 mb-1 mt-1 hover:text-emerald-700 transition">
                         {prod.name}
                       </h3>
                     </Link>
@@ -547,14 +547,14 @@ export default function CustomerDashboard() {
                       )}
                     </div>
 
-                    <div className="mt-auto pt-4 flex justify-between items-center border-t border-slate-50">
+                    <div className="mt-auto pt-3 sm:pt-4 flex flex-col sm:flex-row gap-2 sm:justify-between sm:items-center border-t border-slate-50">
                       <div>
-                        <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 block">Price</span>
-                        <span className="text-lg font-black text-slate-900">₹{displayedPrice.toFixed(2)}</span>
+                        <span className="text-[9px] uppercase tracking-wider font-extrabold text-slate-400 block">Price</span>
+                        <span className="text-sm sm:text-lg font-black text-slate-900">₹{displayedPrice.toFixed(2)}</span>
                       </div>
 
                       {isSoldOut ? (
-                        <Button variant="secondary" size="sm" disabled>
+                        <Button variant="secondary" size="sm" disabled className="w-full sm:w-auto text-xxs sm:text-xs">
                           Sold Out
                         </Button>
                       ) : (() => {
@@ -563,23 +563,23 @@ export default function CustomerDashboard() {
 
                         if (currentQty > 0) {
                           return (
-                            <div className="flex items-center justify-between bg-emerald-50 rounded-lg p-1 border border-emerald-200">
+                            <div className="flex items-center justify-between bg-emerald-50 rounded-lg p-0.5 sm:p-1 border border-emerald-200 w-full sm:w-auto">
                               <button
                                 type="button"
                                 disabled={addingId === prod.id}
                                 onClick={() => updateCartQuantity(prod.id, chosenSizeName || null, currentQty - 1)}
-                                className="w-8 h-8 flex items-center justify-center bg-white hover:bg-emerald-100 text-emerald-700 font-extrabold rounded-md shadow-sm border border-emerald-100 active:scale-95 transition-all select-none disabled:opacity-50"
+                                className="w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center bg-white hover:bg-emerald-100 text-emerald-700 font-extrabold rounded-md shadow-sm border border-emerald-100 active:scale-95 transition-all select-none disabled:opacity-50 text-xs sm:text-base"
                               >
                                 −
                               </button>
-                              <span className="px-3 font-extrabold text-sm text-emerald-950 select-none min-w-[20px] text-center">
+                              <span className="px-1.5 sm:px-3 font-extrabold text-xs sm:text-sm text-emerald-950 select-none min-w-[15px] sm:min-w-[20px] text-center">
                                 {addingId === prod.id ? '...' : currentQty}
                               </span>
                               <button
                                 type="button"
                                 disabled={addingId === prod.id || currentQty >= displayedStock}
                                 onClick={() => updateCartQuantity(prod.id, chosenSizeName || null, currentQty + 1)}
-                                className="w-8 h-8 flex items-center justify-center bg-white hover:bg-emerald-100 text-emerald-700 font-extrabold rounded-md shadow-sm border border-emerald-100 active:scale-95 transition-all select-none disabled:opacity-50"
+                                className="w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center bg-white hover:bg-emerald-100 text-emerald-700 font-extrabold rounded-md shadow-sm border border-emerald-100 active:scale-95 transition-all select-none disabled:opacity-50 text-xs sm:text-base"
                               >
                                 +
                               </button>
@@ -593,6 +593,7 @@ export default function CustomerDashboard() {
                             size="sm"
                             loading={addingId === prod.id}
                             onClick={() => handleAddToCart(prod.id)}
+                            className="w-full sm:w-auto text-xxs sm:text-xs py-1.5 sm:py-2"
                           >
                             Add to Cart
                           </Button>

@@ -270,6 +270,7 @@ export default function CartPage() {
   }
 
   const handleCheckout = (e: React.FormEvent) => {
+    e.preventDefault()
     if (!shippingAddress.trim()) {
       alert('Please enter a delivery address to complete your checkout!')
       return
@@ -481,17 +482,19 @@ export default function CartPage() {
                   <div className="flex items-center justify-between sm:justify-end gap-6">
                     <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
                       <button
+                        type="button"
                         onClick={() => handleUpdateQuantity(item.productId, item.unitSize, item.quantity - 1)}
-                        className="px-3 py-1.5 hover:bg-slate-200 transition font-bold text-slate-650"
+                        className="px-3 py-1.5 hover:bg-slate-200 transition font-bold text-slate-650 active:scale-95 select-none"
                       >
                         -
                       </button>
-                      <span className="px-4 py-1 text-sm font-bold text-slate-950 bg-white">
+                      <span className="px-4 py-1 text-sm font-bold text-slate-955 bg-white select-none">
                         {item.quantity}
                       </span>
                       <button
+                        type="button"
                         onClick={() => handleUpdateQuantity(item.productId, item.unitSize, item.quantity + 1)}
-                        className="px-3 py-1.5 hover:bg-slate-200 transition font-bold text-slate-650"
+                        className="px-3 py-1.5 hover:bg-slate-200 transition font-bold text-slate-650 active:scale-95 select-none"
                         disabled={item.quantity >= getItemMaxStock(item)}
                       >
                         +

@@ -187,41 +187,89 @@ export default function StallAreasPage() {
               ) : stalls.length === 0 ? (
                 <p className="text-center py-8 text-sm font-semibold text-slate-450 italic">No stall locations defined yet.</p>
               ) : (
-                <Table headers={['Stall Name', 'Created Date', 'Actions']}>
-                  {stalls.map((stall) => (
-                    <tr key={stall.id} className="hover:bg-slate-50/50 transition">
-                      <td className="px-6 py-4 font-bold text-slate-900">{stall.name}</td>
-                      <td className="px-6 py-4 text-slate-450 font-semibold">
-                        {new Date(stall.createdAt).toLocaleDateString(undefined, {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric'
-                        })}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingStall(stall)
-                              setEditName(stall.name)
-                            }}
-                            className="text-xs font-bold text-emerald-650 hover:text-emerald-700 transition"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(stall.id, stall.name)}
-                            className="text-xs font-bold text-rose-600 hover:text-rose-700 transition"
-                          >
-                            Delete
-                          </button>
+                <>
+                  {/* Desktop / Tablet view */}
+                  <div className="hidden md:block">
+                    <Table headers={['Stall Name', 'Created Date', 'Actions']}>
+                      {stalls.map((stall) => (
+                        <tr key={stall.id} className="hover:bg-slate-50/50 transition">
+                          <td className="px-6 py-4 font-bold text-slate-900">{stall.name}</td>
+                          <td className="px-6 py-4 text-slate-450 font-semibold">
+                            {new Date(stall.createdAt).toLocaleDateString(undefined, {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingStall(stall)
+                                  setEditName(stall.name)
+                                }}
+                                className="text-xs font-bold text-emerald-650 hover:text-emerald-700 transition"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(stall.id, stall.name)}
+                                className="text-xs font-bold text-rose-600 hover:text-rose-700 transition"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </Table>
+                  </div>
+
+                  {/* Mobile Cards list view */}
+                  <div className="block md:hidden space-y-3">
+                    {stalls.map((stall) => (
+                      <div key={stall.id} className="bg-white border border-slate-100 rounded-2xl p-4 space-y-3 font-semibold text-xs relative">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 block mb-0.5">Stall Name</span>
+                            <span className="font-bold text-slate-900 text-sm">{stall.name}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingStall(stall)
+                                setEditName(stall.name)
+                              }}
+                              className="text-xs font-bold text-emerald-650 hover:text-emerald-700 transition"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(stall.id, stall.name)}
+                              className="text-xs font-bold text-rose-600 hover:text-rose-705 transition"
+                            >
+                              Delete
+                            </button>
+                          </div>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </Table>
+                        <div className="pt-2 border-t border-slate-100">
+                          <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 block mb-0.5">Created Date</span>
+                          <span className="text-slate-455 font-semibold">
+                            {new Date(stall.createdAt).toLocaleDateString(undefined, {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
             </Card>
           </div>
