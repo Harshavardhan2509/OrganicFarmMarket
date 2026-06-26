@@ -130,6 +130,14 @@ function LoginForm() {
                   {showPassword ? '👁️ Hide' : '👁️ Show'}
                 </button>
               </div>
+              <div className="text-right mt-2">
+                <Link
+                  href="/auth/forgot-password"
+                  className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition"
+                >
+                  Forgot Password?
+                </Link>
+              </div>
             </div>
           </div>
 

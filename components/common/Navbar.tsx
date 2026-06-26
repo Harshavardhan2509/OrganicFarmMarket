@@ -13,6 +13,35 @@ export default function Navbar() {
   const [notifications, setNotifications] = useState<any[]>([])
   const [showNotifications, setShowNotifications] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [showManageDropdown, setShowManageDropdown] = useState(false)
+
+  // Toggle background body and html scroll locking when mobile drawer menu is opened
+  useEffect(() => {
+    const html = document.documentElement
+    const body = document.body
+    if (isMobileMenuOpen) {
+      html.style.overflow = 'hidden'
+      body.style.overflow = 'hidden'
+      body.style.position = 'relative'
+      body.style.height = '100%'
+    } else {
+      html.style.overflow = ''
+      body.style.overflow = ''
+      body.style.position = ''
+      body.style.height = ''
+    }
+    return () => {
+      html.style.overflow = ''
+      body.style.overflow = ''
+      body.style.position = ''
+      body.style.height = ''
+    }
+  }, [isMobileMenuOpen])
+
+  // Automatically collapse the navigation menu drawer on page changes
+  useEffect(() => {
+    setIsMobileMenuOpen(false)
+  }, [pathname])
 
   const user = session?.user
   const userRole = (user as any)?.role
@@ -168,18 +197,67 @@ export default function Navbar() {
                   <Link href="/farmer/dashboard/orders" className={navLinkStyle('/farmer/dashboard/orders')}>
                     📬 Received Orders
                   </Link>
-                  <Link href="/farmer/dashboard/customers" className={navLinkStyle('/farmer/dashboard/customers')}>
-                    👥 Customers
+                  <Link href="/farmer/dashboard/returns" className={navLinkStyle('/farmer/dashboard/returns')}>
+                    🔄 Returns
                   </Link>
                   <Link href="/farmer/dashboard/stall-sales" className={navLinkStyle('/farmer/dashboard/stall-sales')}>
                     📊 Stall Sales
                   </Link>
-                  <Link href="/farmer/dashboard/stalls" className={navLinkStyle('/farmer/dashboard/stalls')}>
-                    🎪 Stall Areas
-                  </Link>
-                  <Link href="/farmer/dashboard/credentials" className={navLinkStyle('/farmer/dashboard/credentials')}>
-                    🔑 Staff Credentials
-                  </Link>
+                  
+                  {/* Manage Dropdown */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowManageDropdown(!showManageDropdown)}
+                      className={`flex items-center gap-1 block text-base font-bold transition-all px-4 py-3 rounded-xl outline-none select-none ${
+                        showManageDropdown || ['/farmer/dashboard/stalls', '/farmer/dashboard/customers', '/farmer/dashboard/credentials', '/farmer/dashboard/billing-settings'].some(p => isActive(p))
+                          ? 'text-emerald-800 bg-emerald-50'
+                          : 'text-slate-750 hover:bg-slate-50 hover:text-emerald-700'
+                      }`}
+                    >
+                      <span>⚙️ Manage</span>
+                      <span className="text-[10px] opacity-60">▼</span>
+                    </button>
+                    {showManageDropdown && (
+                      <div className="absolute left-0 mt-2 w-52 bg-white border border-slate-100 rounded-2xl shadow-xl py-2.5 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
+                        <Link
+                          href="/farmer/dashboard/customers"
+                          onClick={() => setShowManageDropdown(false)}
+                          className={`block px-4 py-2.5 text-sm font-bold transition-colors ${
+                            isActive('/farmer/dashboard/customers') ? 'text-emerald-750 bg-emerald-50/50' : 'text-slate-750 hover:bg-slate-50 hover:text-emerald-700'
+                          }`}
+                        >
+                          👥 Customers
+                        </Link>
+                        <Link
+                          href="/farmer/dashboard/stalls"
+                          onClick={() => setShowManageDropdown(false)}
+                          className={`block px-4 py-2.5 text-sm font-bold transition-colors ${
+                            isActive('/farmer/dashboard/stalls') ? 'text-emerald-750 bg-emerald-50/50' : 'text-slate-750 hover:bg-slate-50 hover:text-emerald-700'
+                          }`}
+                        >
+                          🎪 Stall Areas
+                        </Link>
+                        <Link
+                          href="/farmer/dashboard/credentials"
+                          onClick={() => setShowManageDropdown(false)}
+                          className={`block px-4 py-2.5 text-sm font-bold transition-colors ${
+                            isActive('/farmer/dashboard/credentials') ? 'text-emerald-750 bg-emerald-50/50' : 'text-slate-750 hover:bg-slate-50 hover:text-emerald-700'
+                          }`}
+                        >
+                          🔑 Staff Credentials
+                        </Link>
+                        <Link
+                          href="/farmer/dashboard/billing-settings"
+                          onClick={() => setShowManageDropdown(false)}
+                          className={`block px-4 py-2.5 text-sm font-bold transition-colors ${
+                            isActive('/farmer/dashboard/billing-settings') ? 'text-emerald-750 bg-emerald-50/50' : 'text-slate-750 hover:bg-slate-50 hover:text-emerald-700'
+                          }`}
+                        >
+                          ⚙️ Billing Settings
+                        </Link>
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
             </div>
@@ -217,7 +295,7 @@ export default function Navbar() {
                   )}
                 </button>
                 {showNotifications && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-100 rounded-2xl shadow-xl py-3 z-50 animate-in fade-in slide-in-from-top-3 duration-250">
+                  <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-32px)] bg-white border border-slate-100 rounded-2xl shadow-xl py-3 z-50 animate-in fade-in slide-in-from-top-3 duration-250">
                     <div className="px-4 pb-2 border-b border-slate-50 flex justify-between items-center">
                       <span className="text-xs font-black text-slate-900 uppercase tracking-wider">Notifications</span>
                       {notifications.some(n => !n.read) && (
@@ -302,9 +380,19 @@ export default function Navbar() {
                 {/* Profile Name Block */}
                 <div className="flex items-center gap-2 sm:gap-3 border-l border-slate-100 pl-2 sm:pl-4">
                   <div className="hidden sm:flex sm:flex-col sm:items-end">
-                    <span className="text-sm font-bold text-slate-900 leading-tight">
+                    <span className="text-sm font-bold text-slate-900 leading-tight truncate max-w-[150px]">
                       {user?.name}
                     </span>
+                    {userRole === 'farmer' && (
+                      <span className="text-[10px] font-extrabold text-emerald-700 mt-0.5 select-none uppercase tracking-wider">
+                        farmer
+                      </span>
+                    )}
+                    {userRole === 'salesperson' && (
+                      <span className="text-[10px] font-extrabold text-teal-700 mt-0.5 select-none uppercase tracking-wider">
+                        sales person
+                      </span>
+                    )}
                   </div>
 
                   <button
@@ -316,7 +404,7 @@ export default function Navbar() {
                 </div>
               </>
             ) : (
-              <div className="flex items-center gap-2 sm:gap-3">
+              <div className="hidden sm:flex items-center gap-2 sm:gap-3">
                 <Link
                   href="/auth/login"
                   className="text-sm font-bold text-slate-600 hover:text-emerald-800 transition px-2 py-1.5"
@@ -346,15 +434,33 @@ export default function Navbar() {
 
       {/* Mobile Collapsible Navigation Menu Drawer */}
       {isMobileMenuOpen && (
-        <div className="border-t border-slate-100 bg-white py-4 px-4 space-y-2 lg:hidden shadow-inner animate-in slide-in-from-top duration-200">
+        <div className="border-t border-slate-100 bg-white py-4 px-4 space-y-2 lg:hidden shadow-inner animate-in slide-in-from-top duration-200 max-h-[calc(100vh-64px)] overflow-y-auto">
           {status === 'unauthenticated' ? (
-            <Link
-              href="/customer/dashboard"
-              className={mobileNavLinkStyle('/customer/dashboard')}
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              🏠 Home
-            </Link>
+            <>
+              <Link
+                href="/customer/dashboard"
+                className={mobileNavLinkStyle('/customer/dashboard')}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                🏠 Home
+              </Link>
+              <div className="pt-4 border-t border-slate-100 mt-2 flex flex-col gap-2">
+                <Link
+                  href="/auth/login"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="block text-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 px-4 py-2.5 text-sm font-bold shadow-sm transition"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/auth/register"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="block text-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 text-sm font-bold shadow-sm transition"
+                >
+                  Join Us
+                </Link>
+              </div>
+            </>
           ) : userRole === 'customer' ? (
             <>
               <Link
@@ -434,6 +540,13 @@ export default function Navbar() {
                 📬 Received Orders
               </Link>
               <Link
+                href="/farmer/dashboard/returns"
+                className={mobileNavLinkStyle('/farmer/dashboard/returns')}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                🔄 Returns & Replacements
+              </Link>
+              <Link
                 href="/farmer/dashboard/customers"
                 className={mobileNavLinkStyle('/farmer/dashboard/customers')}
                 onClick={() => setIsMobileMenuOpen(false)}
@@ -461,10 +574,16 @@ export default function Navbar() {
               >
                 🔑 Staff Credentials
               </Link>
+              <Link
+                href="/farmer/dashboard/billing-settings"
+                className={mobileNavLinkStyle('/farmer/dashboard/billing-settings')}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                ⚙️ Billing Settings
+              </Link>
             </>
           )}
 
-          {/* Mobile Profile Display */}
           {status === 'authenticated' && (
             <div className="pt-4 border-t border-slate-100 mt-2 flex items-center justify-between px-4">
               <span className="text-sm font-bold text-slate-800">{user?.name}</span>
@@ -481,6 +600,6 @@ export default function Navbar() {
           )}
         </div>
       )}
-    </nav>
+      </nav>
   )
 }

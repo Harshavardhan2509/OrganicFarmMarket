@@ -239,12 +239,16 @@ export async function POST(request: NextRequest) {
         }
       })
 
+      const shippingFee = 30.0
+      const grandTotalAmount = totalAmount + shippingFee
+
       // a. Create Order
       const newOrder = await tx.order.create({
         data: {
           id: orderId,
           userId,
-          totalAmount,
+          totalAmount: grandTotalAmount,
+          orderType: 'pre-order',
           status: 'pending',
           paymentStatus: 'completed', // Mock complete payment directly upon checkout
           shippingAddress: shippingAddress || 'Default Address',
@@ -320,7 +324,7 @@ export async function POST(request: NextRequest) {
         data: {
           orderId: newOrder.id,
           userId,
-          amount: totalAmount,
+          amount: grandTotalAmount,
           status: 'completed',
           paymentMethod: 'Credit Card',
           transactionId: `TXN-${Math.floor(10000000 + Math.random() * 90000000)}`

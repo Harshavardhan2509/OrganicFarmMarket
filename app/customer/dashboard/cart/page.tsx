@@ -37,11 +37,12 @@ export default function CartPage() {
   const [loading, setLoading] = useState(true)
   const [shippingAddress, setShippingAddress] = useState('')
   const [phone, setPhone] = useState('')
-  const [guestName, setGuestName] = useState('')
   const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [orderCompleted, setOrderCompleted] = useState<any>(null)
   const [selectedApartment, setSelectedApartment] = useState('')
   const [apartments, setApartments] = useState<any[]>([])
+  const [categoriesList, setCategoriesList] = useState<any[]>([])
+  const [showConfirmModal, setShowConfirmModal] = useState(false) // Show billing breakdown modal before placing order
 
   const getItemPrice = (item: CartItem) => {
     if (item.unitSize && item.product.unitSizes) {
@@ -167,6 +168,21 @@ export default function CartPage() {
     fetchApartments()
   }, [])
 
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch('/api/categories')
+        if (res.ok) {
+          const data = await res.json()
+          setCategoriesList(data)
+        }
+      } catch (err) {
+        console.error('Failed to load categories:', err)
+      }
+    }
+    fetchCategories()
+  }, [])
+
   const handleUpdateQuantity = async (productId: string, unitSize: string | null, newQuantity: number) => {
     if (newQuantity < 0) return
     if (status === 'unauthenticated') {
@@ -253,16 +269,13 @@ export default function CartPage() {
     }
   }
 
-  const handleCheckout = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (status === 'unauthenticated') {
-      if (!guestName.trim()) {
-        alert('Please enter your name to complete your checkout!')
-        return
-      }
-    }
+  const handleCheckout = (e: React.FormEvent) => {
     if (!shippingAddress.trim()) {
       alert('Please enter a delivery address to complete your checkout!')
+      return
+    }
+    if (!selectedApartment.trim()) {
+      alert('Apartment selection is mandatory for checkout!')
       return
     }
     if (!phone.trim()) {
@@ -270,41 +283,24 @@ export default function CartPage() {
       return
     }
 
+    setShowConfirmModal(true)
+  }
+
+  const executeOrderCheckout = async () => {
     setCheckoutLoading(true)
     try {
-      let res
-      if (status === 'unauthenticated') {
-        res = await fetch('/api/orders/guest-checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: guestName,
-            phone,
-            shippingAddress,
-            stallName: selectedApartment,
-            items: cart?.items.map(item => ({
-              productId: item.productId,
-              quantity: item.quantity,
-              unitSize: item.unitSize
-            }))
-          }),
-        })
-      } else {
-        res = await fetch('/api/orders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ shippingAddress, phone, stallName: selectedApartment }),
-        })
-      }
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shippingAddress, phone, stallName: selectedApartment }),
+      })
 
       const data = await res.json()
 
       if (res.ok) {
         setOrderCompleted(data)
-        if (status === 'unauthenticated') {
-          localStorage.removeItem('guestCart')
-        }
         setCart(null)
+        setShowConfirmModal(false)
       } else {
         alert(data.error || 'Checkout failed. Please verify item quantities.')
       }
@@ -316,9 +312,33 @@ export default function CartPage() {
   }
 
   // Calculation summaries in INR
-  const subtotal = cart?.items.reduce((sum, item) => sum + getItemPrice(item) * item.quantity, 0) || 0
-  const shippingFee = subtotal > 0 ? 30.0 : 0.0 // Adjusted for INR scale
-  const estimatedTax = subtotal * 0.08
+  const calculateTaxesAndTotals = () => {
+    if (!cart || !cart.items) return { subtotal: 0, estimatedTax: 0 }
+    let subtotalVal = 0
+    let taxVal = 0
+    
+    cart.items.forEach(item => {
+      const price = getItemPrice(item)
+      const qty = item.quantity
+      const categoryName = item.product.category
+      
+      const cat = categoriesList.find(c => c.name.toLowerCase() === categoryName.toLowerCase())
+      const cgst = cat ? cat.cgst : 0
+      const sgst = cat ? cat.sgst : 0
+      const gstRate = cgst + sgst
+      
+      const itemSubtotal = price * qty
+      const itemTax = itemSubtotal * (gstRate / 100)
+      
+      subtotalVal += itemSubtotal
+      taxVal += itemTax
+    })
+    
+    return { subtotal: subtotalVal, estimatedTax: taxVal }
+  }
+
+  const { subtotal, estimatedTax } = calculateTaxesAndTotals()
+  const shippingFee = subtotal > 0 ? 30.0 : 0.0 // Pre-order shipping cost is ₹30
   const grandTotal = subtotal + shippingFee + estimatedTax
 
   if (orderCompleted) {
@@ -364,11 +384,11 @@ export default function CartPage() {
                 onClick={() => printInvoice({
                   ...orderCompleted,
                   user: {
-                    name: session?.user?.name || guestName || 'Customer',
+                    name: session?.user?.name || 'Customer',
                     email: session?.user?.email || 'N/A',
                     phone: phone
                   }
-                })}
+                }, categoriesList)}
               >
                 🖨️ Print Invoice
               </Button>
@@ -478,19 +498,22 @@ export default function CartPage() {
                       </button>
                     </div>
 
-                    <div className="text-right min-w-[70px]">
-                      <span className="text-xs uppercase tracking-wider font-extrabold text-slate-400 block leading-none">Total</span>
-                      <span className="text-sm font-bold text-slate-950">
-                        ₹{(getItemPrice(item) * item.quantity).toFixed(2)}
+                    <div className="text-right min-w-[120px]">
+                      <span className="text-xs uppercase tracking-wider font-extrabold text-slate-400 block leading-none">Calculation</span>
+                      <span className="text-xs font-bold text-slate-500 block mt-0.5">
+                        {item.quantity} x ₹{getItemPrice(item).toFixed(2)}
+                      </span>
+                      <span className="text-sm font-black text-slate-950">
+                        = ₹{(getItemPrice(item) * item.quantity).toFixed(2)}
                       </span>
                     </div>
 
                     <button
                       onClick={() => handleRemoveItem(item.productId, item.unitSize)}
-                      className="text-slate-400 hover:text-rose-600 p-1.5 rounded-md hover:bg-rose-50 transition"
+                      className="text-slate-400 hover:text-rose-600 p-1.5 rounded-md hover:bg-rose-50 transition text-lg"
                       title="Remove product"
                     >
-                      ✕
+                      🗑️
                     </button>
                   </div>
                 </Card>
@@ -514,7 +537,7 @@ export default function CartPage() {
                     <span className="text-slate-950">₹{shippingFee.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Estimated Tax (8%)</span>
+                    <span>Estimated Tax (GST)</span>
                     <span className="text-slate-950">₹{estimatedTax.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between border-t border-slate-50 pt-4 text-slate-950">
@@ -524,86 +547,226 @@ export default function CartPage() {
                 </div>
 
                 {/* Shipping address & mobile number form */}
-                <form onSubmit={handleCheckout} className="space-y-4 pt-4 border-t border-slate-50">
-                  {status === 'unauthenticated' && (
+                {status === 'unauthenticated' ? (
+                  <div className="bg-emerald-50/60 border border-emerald-150 rounded-2xl p-6 text-center space-y-4 pt-4 mt-4">
+                    <span className="text-4xl block">🔐</span>
+                    <h3 className="text-sm font-bold text-emerald-800">Sign In to Checkout</h3>
+                    <p className="text-xs text-slate-650 leading-relaxed font-semibold">
+                      You must be signed in to complete your checkout. Please sign in or register to place your order.
+                    </p>
+                    <div className="flex gap-3 justify-center pt-2">
+                      <Link href="/auth/login" className="flex-1">
+                        <Button variant="primary" className="w-full text-xs py-2 font-extrabold">
+                          Sign In
+                        </Button>
+                      </Link>
+                      <Link href="/auth/register" className="flex-1">
+                        <Button variant="outline" className="w-full text-xs py-2 bg-white font-extrabold">
+                          Register
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
+                  <form onSubmit={handleCheckout} className="space-y-4 pt-4 border-t border-slate-50">
                     <div className="space-y-1">
                       <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-                        Your Full Name <span className="text-rose-500 font-bold ml-1">^</span>
+                        Delivery Address <span className="text-rose-500 font-bold ml-1">*</span>
                       </label>
                       <input
                         type="text"
                         required
-                        placeholder="Enter your name"
-                        value={guestName}
-                        onChange={(e) => setGuestName(e.target.value)}
-                        className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-950 outline-none transition focus:border-emerald-500 font-semibold"
+                        placeholder="Enter your shipping address"
+                        value={shippingAddress}
+                        onChange={(e) => setShippingAddress(e.target.value)}
+                        className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-955 outline-none transition focus:border-emerald-500 font-semibold"
                       />
                     </div>
-                  )}
 
-                  <div className="space-y-1">
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-                      Delivery Address <span className="text-rose-500 font-bold ml-1">^</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Enter your shipping address"
-                      value={shippingAddress}
-                      onChange={(e) => setShippingAddress(e.target.value)}
-                      className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-950 outline-none transition focus:border-emerald-500 font-semibold"
-                    />
-                  </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        Select Apartment <span className="text-rose-500 font-bold ml-1">*</span>
+                      </label>
+                      <select
+                        required
+                        value={selectedApartment}
+                        onChange={(e) => setSelectedApartment(e.target.value)}
+                        className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-955 outline-none transition focus:border-emerald-500 font-semibold bg-white"
+                      >
+                        <option value="" disabled>Select Apartment</option>
+                        {apartments.map((apt: any) => (
+                          <option key={apt.id} value={apt.name}>
+                            {apt.name}
+                          </option>
+                        ))}
+                        {apartments.length === 0 && (
+                          <option value="" disabled>No Apartments Defined</option>
+                        )}
+                      </select>
+                    </div>
 
-                  <div className="space-y-1">
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-                      Select Apartment <span className="text-rose-500 font-bold ml-1">^</span>
-                    </label>
-                    <select
-                      required
-                      value={selectedApartment}
-                      onChange={(e) => setSelectedApartment(e.target.value)}
-                      className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-950 outline-none transition focus:border-emerald-500 font-semibold bg-white"
+                    <div className="space-y-1">
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        Mobile Number <span className="text-rose-500 font-bold ml-1">*</span>
+                      </label>
+                      <input
+                        type="tel"
+                        required
+                        placeholder="e.g. 9876543210"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-955 outline-none transition focus:border-emerald-500 font-semibold"
+                      />
+                    </div>
+
+                    <Button
+                      type="submit"
+                      className="w-full mt-2"
+                      loading={checkoutLoading}
                     >
-                      <option value="" disabled>Select Apartment</option>
-                      {apartments.map((apt: any) => (
-                        <option key={apt.id} value={apt.name}>
-                          {apt.name}
-                        </option>
-                      ))}
-                      {apartments.length === 0 && (
-                        <option value="" disabled>No Apartments Defined</option>
-                      )}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-                      Mobile Number <span className="text-rose-500 font-bold ml-1">^</span>
-                    </label>
-                    <input
-                      type="tel"
-                      required
-                      placeholder="e.g. 9876543210"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-950 outline-none transition focus:border-emerald-500 font-semibold"
-                    />
-                  </div>
-
-                  <Button
-                    type="submit"
-                    className="w-full mt-2"
-                    loading={checkoutLoading}
-                  >
-                    Place Your Order (₹{grandTotal.toFixed(2)})
-                  </Button>
-                </form>
+                      Place Your Order (₹{grandTotal.toFixed(2)})
+                    </Button>
+                  </form>
+                )}
 
                 <p className="text-xxs font-semibold text-slate-400 text-center uppercase tracking-wider block">
                   🛡️ Payments are simulated and securely logged.
                 </p>
               </Card>
+            </div>
+          </div>
+        )}
+
+        {showConfirmModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-emerald-50/50">
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Review & Confirm Your Order
+                  </h3>
+                  <span className="text-xxs font-bold text-slate-500 uppercase tracking-wider block mt-0.5">
+                    Please verify your billing breakdown before placing order
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmModal(false)}
+                  className="text-slate-450 hover:text-slate-655 font-bold transition text-lg"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 overflow-y-auto space-y-5 flex-1 min-h-0 text-left text-xs">
+                
+                {/* Deliver details summary */}
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-2">
+                  <h4 className="font-extrabold text-slate-700 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1 mb-2">Delivery Details</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-slate-455 font-bold block uppercase text-[9px]">Deliver To:</span>
+                      <span className="font-black text-slate-800">{session?.user?.name || 'Valued Customer'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-455 font-bold block uppercase text-[9px]">Mobile Number:</span>
+                      <span className="font-black text-slate-800">{phone}</span>
+                    </div>
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-slate-100">
+                    <span className="text-slate-455 font-bold block uppercase text-[9px]">Apartment:</span>
+                    <span className="font-black text-slate-850 block">{selectedApartment}</span>
+                    <span className="text-slate-455 font-bold block uppercase text-[9px] mt-2">Shipping Address:</span>
+                    <span className="font-medium text-slate-700 block">{shippingAddress}</span>
+                  </div>
+                </div>
+
+                {/* Items Breakdown list */}
+                <div className="space-y-2">
+                  <h4 className="font-extrabold text-slate-700 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1">Items Breakdown</h4>
+                  <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl p-3 bg-white max-h-[160px] overflow-y-auto">
+                    {cart?.items.map((item) => {
+                      const price = getItemPrice(item)
+                      const itemTotal = price * item.quantity
+                      const cat = categoriesList.find(c => c.name.toLowerCase() === item.product.category.toLowerCase())
+                      const cgst = cat ? cat.cgst : 0
+                      const sgst = cat ? cat.sgst : 0
+                      const gstRate = cgst + sgst
+                      const basePrice = price / (1 + gstRate / 100)
+                      const taxAmt = basePrice * item.quantity * (gstRate / 100)
+                      
+                      return (
+                        <div key={item.id} className="py-2 flex justify-between items-center first:pt-0 last:pb-0 font-semibold">
+                          <div>
+                            <span className="text-slate-900 font-bold block text-[11px] truncate max-w-[220px]">
+                              {item.product.name} {item.unitSize ? `(${item.unitSize})` : ''}
+                            </span>
+                            <span className="text-[10px] text-slate-400 block font-medium">
+                              Tax Rate: {gstRate}% | GST: ₹{taxAmt.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="text-[10px] text-slate-550 block font-bold">
+                              {item.quantity} x ₹{price.toFixed(2)}
+                            </span>
+                            <span className="text-sm font-black text-slate-900 block">
+                              = ₹{itemTotal.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Detailed Invoice-like Breakdown */}
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-2.5">
+                  <h4 className="font-extrabold text-slate-700 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1 mb-2">Price Breakdown</h4>
+                  <div className="flex justify-between font-bold text-slate-550">
+                    <span>Produce Subtotal:</span>
+                    <span>₹{subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-slate-550">
+                    <span>CGST (Taxes):</span>
+                    <span>₹{(estimatedTax / 2).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-slate-550">
+                    <span>SGST (Taxes):</span>
+                    <span>₹{(estimatedTax / 2).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-slate-550">
+                    <span>Delivery Charges:</span>
+                    <span>₹{shippingFee.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-t border-slate-200 pt-2.5 mt-2 font-black text-sm text-slate-900">
+                    <span>Grand Total:</span>
+                    <span className="text-base text-emerald-800">₹{grandTotal.toFixed(2)}</span>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Footer CTA */}
+              <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex gap-3 justify-end">
+                <Button
+                  variant="outline"
+                  type="button"
+                  onClick={() => setShowConfirmModal(false)}
+                  disabled={checkoutLoading}
+                >
+                  Cancel & Edit
+                </Button>
+                <Button
+                  type="button"
+                  onClick={executeOrderCheckout}
+                  loading={checkoutLoading}
+                  disabled={checkoutLoading}
+                >
+                  Confirm & Place Order (₹{grandTotal.toFixed(2)})
+                </Button>
+              </div>
             </div>
           </div>
         )}

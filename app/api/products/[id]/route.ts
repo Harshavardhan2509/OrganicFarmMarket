@@ -93,7 +93,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { name, description, price, category, image, unitSizes, stockUpdate } = await request.json()
+    const { name, description, price, category, image, unitSizes, stockUpdate, upcomingStock } = await request.json()
 
     const product = await prisma.product.findUnique({
       where: { id: params.id }
@@ -250,7 +250,8 @@ export async function PUT(
         quantity: finalQuantity,
         unitSizes: finalUnitSizes,
         category: category || product.category,
-        image: image || product.image
+        image: image || product.image,
+        upcomingStock: upcomingStock !== undefined ? upcomingStock : product.upcomingStock
       }
     })
 

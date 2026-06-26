@@ -23,6 +23,7 @@ export interface Product {
   farmerId: string
   createdAt: Date
   updatedAt: Date
+  upcomingStock?: string | null
 }
 
 export interface CartItem {

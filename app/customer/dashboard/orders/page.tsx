@@ -24,9 +24,10 @@ interface OrderItem {
 interface Order {
   id: string
   totalAmount: number
-  status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled'
+  status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'return-requested' | 'replace-requested'
   paymentStatus: string
   shippingAddress: string
+  orderType?: string
   stallName?: string | null
   createdAt: string
   items: OrderItem[]
@@ -41,9 +42,37 @@ export default function CustomerOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
 
+  const handleRequestReturnOrReplace = async (orderId: string, type: 'return' | 'replace') => {
+    const reason = window.prompt(`Please enter the reason for your ${type} request:`)
+    if (reason === null) return
+    if (!reason.trim()) {
+      alert('A reason is mandatory to request a return or replacement.')
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: type === 'return' ? 'return-requested' : 'replace-requested' }),
+      })
+
+      if (res.ok) {
+        alert(`${type === 'return' ? 'Return' : 'Replacement'} request submitted successfully!`)
+        fetchOrders()
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to submit request')
+      }
+    } catch (err) {
+      console.error(err)
+      alert('An error occurred while submitting your request.')
+    }
+  }
+
   // Custom Reviews states
   const [activeReviewProduct, setActiveReviewProduct] = useState<any | null>(null)
-  const [userRating, setUserRating] = useState<number>(5)
+  const [userRating, setUserRating] = useState<number>(0)
   const [userComment, setUserComment] = useState<string>('')
   const [reviewSubmitting, setReviewSubmitting] = useState<boolean>(false)
 
@@ -67,7 +96,7 @@ export default function CustomerOrdersPage() {
 
   const handleOpenReviewModal = async (productId: string, productName: string) => {
     setActiveReviewProduct({ id: productId, name: productName, reviews: [] })
-    setUserRating(5)
+    setUserRating(0)
     setUserComment('')
     try {
       const res = await fetch(`/api/products/${productId}`)
@@ -83,6 +112,10 @@ export default function CustomerOrdersPage() {
   const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!activeReviewProduct) return
+    if (userRating === 0) {
+      alert('Please select a star rating between 1 and 5.')
+      return
+    }
     setReviewSubmitting(true)
 
     try {
@@ -99,7 +132,7 @@ export default function CustomerOrdersPage() {
       const data = await res.json()
       if (res.ok) {
         setUserComment('')
-        setUserRating(5)
+        setUserRating(0)
         const updatedProductRes = await fetch(`/api/products/${activeReviewProduct.id}`)
         if (updatedProductRes.ok) {
           const updatedProduct = await updatedProductRes.json()
@@ -121,6 +154,7 @@ export default function CustomerOrdersPage() {
     if (status === 'shipped') return 'info'
     if (status === 'confirmed') return 'primary'
     if (status === 'cancelled') return 'danger'
+    if (status === 'return-requested' || status === 'replace-requested') return 'warning'
     return 'warning'
   }
 
@@ -131,6 +165,24 @@ export default function CustomerOrdersPage() {
         <div className="flex items-center gap-2 text-rose-600 bg-rose-50 px-4 py-3 rounded-xl border border-rose-100 font-semibold text-xs mt-4">
           <span>❌</span>
           <span>This order has been cancelled.</span>
+        </div>
+      )
+    }
+
+    if (currentStatus === 'return-requested') {
+      return (
+        <div className="flex items-center gap-2 text-amber-600 bg-amber-50 px-4 py-3 rounded-xl border border-amber-100 font-semibold text-xs mt-4">
+          <span>↩️</span>
+          <span>Return requested for this order. We will process this shortly.</span>
+        </div>
+      )
+    }
+
+    if (currentStatus === 'replace-requested') {
+      return (
+        <div className="flex items-center gap-2 text-amber-600 bg-amber-50 px-4 py-3 rounded-xl border border-amber-100 font-semibold text-xs mt-4">
+          <span>🔄</span>
+          <span>Replacement requested for this order. We will process this shortly.</span>
         </div>
       )
     }
@@ -263,6 +315,26 @@ export default function CustomerOrdersPage() {
                     <Badge variant="success">
                       PAID
                     </Badge>
+                    {order.status === 'delivered' && order.orderType !== 'live-counter' && (
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-rose-200 text-rose-700 hover:bg-rose-50"
+                          onClick={() => handleRequestReturnOrReplace(order.id, 'return')}
+                        >
+                          ↩️ Return
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-amber-200 text-amber-700 hover:bg-amber-50"
+                          onClick={() => handleRequestReturnOrReplace(order.id, 'replace')}
+                        >
+                          🔄 Replace
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -341,9 +413,6 @@ export default function CustomerOrdersPage() {
                   <h3 className="text-lg font-bold text-slate-900 truncate max-w-[280px]">
                     Reviews for {activeReviewProduct.name}
                   </h3>
-                  <span className="text-xxs font-extrabold uppercase tracking-wider text-emerald-600 block mt-0.5">
-                    👨‍🌾 Sold by {activeReviewProduct.farmer?.name || 'Local Farmer'}
-                  </span>
                 </div>
                 <button
                   type="button"

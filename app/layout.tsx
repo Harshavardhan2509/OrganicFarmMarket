@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { ReactNode } from 'react'
 import { Inter } from 'next/font/google'
 import { AuthProvider } from '@/contexts/AuthContext'
+import WhatsAppWidget from '@/components/common/WhatsAppWidget'
 import '../styles/globals.css'
 
 const inter = Inter({ subsets: ['latin'], display: 'swap' })
@@ -24,6 +25,7 @@ export default function RootLayout({
       <body className={`${inter.className} min-h-screen bg-slate-50 text-slate-900 antialiased flex flex-col`}>
         <AuthProvider>
           {children}
+          <WhatsAppWidget />
         </AuthProvider>
       </body>
     </html>

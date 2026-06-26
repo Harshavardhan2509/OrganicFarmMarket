@@ -392,37 +392,98 @@ export default function FarmerCredentialsPage() {
               ) : staffList.length === 0 ? (
                 <p className="text-center py-8 text-sm font-semibold text-slate-450 italic">No staff credentials have been created yet.</p>
               ) : (
-                <Table headers={['Name', 'Email', 'Mobile Number', 'Role', 'Address', 'Created Date', 'Actions']}>
-                  {staffList.map((staff) => (
-                    <tr key={staff.id} className="hover:bg-slate-50/50 transition">
-                      <td className="px-6 py-4 font-bold text-slate-900">{staff.name}</td>
-                      <td className="px-6 py-4 text-slate-800 font-semibold">
-                        {staff.email || <span className="text-slate-400 italic">No Email</span>}
-                      </td>
-                      <td className="px-6 py-4 text-slate-800 font-semibold">
-                        {staff.phone || <span className="text-slate-400 italic">No Phone</span>}
-                      </td>
-                      <td className="px-6 py-4">
-                        <Badge variant={staff.role === 'farmer' ? 'primary' : 'info'} className="capitalize">
-                          {staff.role === 'farmer' ? 'Farmer/Owner' : 'Sales Person'}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 text-slate-650 max-w-xs truncate" title={staff.address || ''}>
-                        {staff.address || <span className="text-slate-400 italic">Not Provided</span>}
-                      </td>
-                      <td className="px-6 py-4 text-slate-450 font-semibold">
-                        {new Date(staff.createdAt).toLocaleDateString(undefined, {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric'
-                        })}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex gap-2">
+                <>
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block">
+                    <Table headers={['Name', 'Email', 'Mobile Number', 'Role', 'Address', 'Created Date', 'Actions']}>
+                      {staffList.map((staff) => (
+                        <tr key={staff.id} className="hover:bg-slate-50/50 transition">
+                          <td className="px-6 py-4 font-bold text-slate-900">{staff.name}</td>
+                          <td className="px-6 py-4 text-slate-800 font-semibold">
+                            {staff.email || <span className="text-slate-400 italic">No Email</span>}
+                          </td>
+                          <td className="px-6 py-4 text-slate-800 font-semibold">
+                            {staff.phone || <span className="text-slate-400 italic">No Phone</span>}
+                          </td>
+                          <td className="px-6 py-4">
+                            <Badge variant={staff.role === 'farmer' ? 'primary' : 'info'} className="capitalize">
+                              {staff.role === 'farmer' ? 'Farmer/Owner' : 'Sales Person'}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-4 text-slate-650 max-w-xs truncate" title={staff.address || ''}>
+                            {staff.address || <span className="text-slate-400 italic">Not Provided</span>}
+                          </td>
+                          <td className="px-6 py-4 text-slate-450 font-semibold">
+                            {new Date(staff.createdAt).toLocaleDateString(undefined, {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(staff)}
+                                className="px-2.5 py-1 text-xs font-bold text-emerald-600 hover:bg-emerald-50 rounded transition"
+                              >
+                                ✏️ Edit
+                              </button>
+                              {session?.user && (session.user as any).id !== staff.id && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDelete(staff.id, staff.name)}
+                                  className="px-2.5 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded transition"
+                                >
+                                  🗑️ Delete
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </Table>
+                  </div>
+
+                  {/* Mobile Card View */}
+                  <div className="block md:hidden space-y-4">
+                    {staffList.map((staff) => (
+                      <div key={staff.id} className="bg-slate-50 border border-slate-100 rounded-2xl p-4 shadow-sm space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="font-extrabold text-slate-900 text-sm">{staff.name}</span>
+                          <Badge variant={staff.role === 'farmer' ? 'primary' : 'info'} className="capitalize">
+                            {staff.role === 'farmer' ? 'Farmer' : 'Sales Person'}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-semibold">
+                          <div>
+                            <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Email</span>
+                            <span className="text-slate-800 block truncate">{staff.email || 'N/A'}</span>
+                          </div>
+                          <div>
+                            <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Mobile</span>
+                            <span className="text-slate-800">{staff.phone || 'N/A'}</span>
+                          </div>
+                          <div className="sm:col-span-2">
+                            <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Address</span>
+                            <span className="text-slate-650">{staff.address || 'Not Provided'}</span>
+                          </div>
+                          <div>
+                            <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Created At</span>
+                            <span className="text-slate-500">
+                              {new Date(staff.createdAt).toLocaleDateString(undefined, {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 justify-end pt-2 border-t border-slate-200/60">
                           <button
                             type="button"
                             onClick={() => openEditModal(staff)}
-                            className="px-2.5 py-1 text-xs font-bold text-emerald-600 hover:bg-emerald-50 rounded transition"
+                            className="px-3 py-1.5 text-xs font-bold text-emerald-600 bg-white border border-slate-200 hover:bg-emerald-50 rounded-lg transition shadow-sm"
                           >
                             ✏️ Edit
                           </button>
@@ -430,16 +491,16 @@ export default function FarmerCredentialsPage() {
                             <button
                               type="button"
                               onClick={() => handleDelete(staff.id, staff.name)}
-                              className="px-2.5 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded transition"
+                              className="px-3 py-1.5 text-xs font-bold text-rose-600 bg-white border border-slate-200 hover:bg-rose-50 rounded-lg transition shadow-sm"
                             >
                               🗑️ Delete
                             </button>
                           )}
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </Table>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
             </Card>
           </div>

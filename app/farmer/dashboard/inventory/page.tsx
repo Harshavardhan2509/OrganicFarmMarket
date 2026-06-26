@@ -19,6 +19,7 @@ interface Product {
   farmerId: string
   unitSizes?: string | null
   image?: string | null
+  upcomingStock?: string | null
 }
 
 export default function InventoryPage() {
@@ -83,6 +84,17 @@ export default function InventoryPage() {
     fetchInventory()
     fetchCategories()
   }, [session])
+
+  useEffect(() => {
+    if (showCategoryModal) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [showCategoryModal])
 
   const handleDelete = async (productId: string, productName: string) => {
     if (isSalesperson) return
@@ -262,9 +274,22 @@ export default function InventoryPage() {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-xl border border-emerald-100 overflow-hidden shrink-0">
-                        {prod.image ? (
-                          <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" />
-                        ) : (
+                        {(() => {
+                          if (!prod.image) return null;
+                          let displayImg = prod.image;
+                          if (prod.image.startsWith('[')) {
+                            try {
+                              const parsed = JSON.parse(prod.image);
+                              if (Array.isArray(parsed) && parsed.length > 0) {
+                                displayImg = parsed[0];
+                              }
+                            } catch {}
+                          }
+                          return displayImg ? (
+                            <img src={displayImg} alt={prod.name} className="w-full h-full object-cover" />
+                          ) : null;
+                        })()}
+                        {!prod.image && (
                           <>
                             {prod.category === 'Fruits' && '🍎'}
                             {prod.category === 'Vegetables' && '🥦'}
@@ -382,8 +407,8 @@ export default function InventoryPage() {
         {/* Category Management Modal */}
         {showCategoryModal && !isSalesperson && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150">
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
                 <h3 className="text-lg font-bold text-slate-900">Manage Product Categories</h3>
                 <button
                   onClick={() => setShowCategoryModal(false)}
@@ -393,7 +418,7 @@ export default function InventoryPage() {
                 </button>
               </div>
 
-              <div className="p-6 space-y-6">
+              <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
                 {editingCategory ? (
                   /* Edit Category Form */
                   <form onSubmit={handleEditCategory} className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-3">
@@ -555,11 +580,11 @@ export default function InventoryPage() {
                 </div>
               </div>
 
-              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowCategoryModal(false)}
-                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-bold transition"
+                  className="px-4 py-2 bg-slate-200 hover:bg-slate-350 text-slate-700 rounded-lg font-bold transition"
                 >
                   Close
                 </button>

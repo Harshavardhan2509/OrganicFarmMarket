@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized. Farmers only.' }, { status: 401 })
     }
 
-    const { name, description, price, quantity, category, image, unitSizes } = await request.json()
+    const { name, description, price, quantity, category, image, unitSizes, upcomingStock } = await request.json()
 
     if (!name || !description || price === undefined || quantity === undefined || !category) {
       return NextResponse.json({ error: 'All fields are required' }, { status: 400 })
@@ -140,7 +140,8 @@ export async function POST(request: NextRequest) {
         image: image || null,
         farmerId: farmer.id,
         farmerEmail: farmer.email,
-        unitSizes: unitSizes || null
+        unitSizes: unitSizes || null,
+        upcomingStock: upcomingStock || null
       }
     })
 

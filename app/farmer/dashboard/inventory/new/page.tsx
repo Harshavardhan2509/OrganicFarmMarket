@@ -21,7 +21,8 @@ export default function AddProductPage() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState<string>('')
-  const [image, setImage] = useState('')
+  const [images, setImages] = useState<Array<{ id: string; url: string; priority: number; uploadedAt: number }>>([])
+  const [upcomingStock, setUpcomingStock] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -34,26 +35,53 @@ export default function AddProductPage() {
   const [uploadingImage, setUploadingImage] = useState(false)
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    // Limit file size to 2MB to keep database size reasonable
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Image size exceeds 2MB limit. Please choose a smaller image.')
-      return
-    }
+    const files = e.target.files
+    if (!files || files.length === 0) return
 
     setUploadingImage(true)
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      setImage(reader.result as string)
-      setUploadingImage(false)
-    }
-    reader.onerror = () => {
-      alert('Failed to read file.')
-      setUploadingImage(false)
-    }
-    reader.readAsDataURL(file)
+    let newImages = [...images]
+    
+    const filePromises = Array.from(files).map((file, idx) => {
+      return new Promise<void>((resolve) => {
+        // Limit file size to 2MB to keep database size reasonable
+        if (file.size > 2 * 1024 * 1024) {
+          alert(`Image "${file.name}" exceeds 2MB limit. Please choose a smaller image.`)
+          resolve()
+          return
+        }
+
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          if (reader.result) {
+            newImages.push({
+              id: Math.random().toString(36).substring(2, 9),
+              url: reader.result as string,
+              priority: newImages.length + 1,
+              uploadedAt: Date.now() + idx
+            })
+          }
+          resolve()
+        }
+        reader.onerror = () => {
+          alert(`Failed to read file: ${file.name}`)
+          resolve()
+        }
+        reader.readAsDataURL(file)
+      })
+    })
+
+    await Promise.all(filePromises)
+    setImages(newImages)
+    setUploadingImage(false)
+  }
+
+  const handleRemoveImage = (id: string) => {
+    setImages(images.filter(img => img.id !== id))
+  }
+
+  const handlePriorityChange = (id: string, priorityStr: string) => {
+    const priority = parseInt(priorityStr) || 0
+    setImages(images.map(img => img.id === id ? { ...img, priority } : img))
   }
 
   const router = useRouter()
@@ -120,6 +148,10 @@ export default function AddProductPage() {
       const primaryPrice = parsedUnitSizes[0].price
       const totalQuantity = parsedUnitSizes.reduce((sum, u) => sum + u.quantity, 0)
 
+      const sortedUrls = [...images]
+        .sort((a, b) => a.priority - b.priority || a.uploadedAt - b.uploadedAt)
+        .map((img) => img.url)
+
       const res = await fetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -129,8 +161,9 @@ export default function AddProductPage() {
           price: primaryPrice,
           quantity: totalQuantity,
           category,
-          image,
-          unitSizes: JSON.stringify(parsedUnitSizes)
+          image: JSON.stringify(sortedUrls),
+          unitSizes: JSON.stringify(parsedUnitSizes),
+          upcomingStock: upcomingStock.trim() || null
         }),
       })
 
@@ -173,7 +206,7 @@ export default function AddProductPage() {
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                  Product Name <span className="text-rose-500 font-black ml-1">^</span>
+                  Product Name <span className="text-rose-500 font-black ml-1">*</span>
                 </label>
                 <input
                   type="text"
@@ -187,7 +220,7 @@ export default function AddProductPage() {
 
               <div className="w-full space-y-1">
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                  Category <span className="text-rose-500 font-black ml-1">^</span>
+                  Category <span className="text-rose-500 font-black ml-1">*</span>
                 </label>
                 <select
                   className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-950 outline-none bg-white transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 font-semibold"
@@ -207,7 +240,7 @@ export default function AddProductPage() {
             <div className="border-t border-b border-slate-100 py-6 space-y-4">
               <div className="flex justify-between items-center">
                 <label className="block text-xs font-black text-slate-550 uppercase tracking-wider">
-                  Product Unit Size Configurations <span className="text-rose-500 font-black ml-1">^</span>
+                  Product Unit Size Configurations <span className="text-rose-500 font-black ml-1">*</span>
                 </label>
                 <button
                   type="button"
@@ -286,7 +319,7 @@ export default function AddProductPage() {
 
             <div className="space-y-1">
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                Product Description <span className="text-rose-500 font-black ml-1">^</span>
+                Product Description <span className="text-rose-500 font-black ml-1">*</span>
               </label>
               <textarea
                 required
@@ -298,53 +331,94 @@ export default function AddProductPage() {
               />
             </div>
 
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                Upcoming Availability Date / Stock Info
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. TBD, July 1st, Out of Stock until next week"
+                value={upcomingStock}
+                onChange={(e) => setUpcomingStock(e.target.value)}
+                className="block w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-950 outline-none transition focus:border-emerald-500 font-semibold"
+              />
+              <p className="text-xxs text-slate-400 font-medium">
+                Leave empty if the item is currently available in stock. Set to a custom notice or date if planning upcoming stock.
+              </p>
+            </div>
             <div className="space-y-3">
-              <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider">
-                Product Image (Upload Local File)
+              <label className="block text-xs font-bold text-slate-555 uppercase tracking-wider">
+                Product Images (Upload Multiple)
               </label>
               
-              <div className="flex flex-col sm:flex-row gap-4 items-center bg-slate-50/50 p-4 border border-slate-100 rounded-2xl">
-                {/* Visual Image Preview */}
-                <div className="w-24 h-24 bg-white border border-slate-150 rounded-xl flex items-center justify-center text-4xl overflow-hidden shrink-0 shadow-inner">
-                  {image ? (
-                    <img src={image} alt="Preview" className="w-full h-full object-cover" />
-                  ) : (
-                    '🌱'
-                  )}
+              <div className="bg-slate-50/50 p-4 border border-slate-100 rounded-2xl space-y-4">
+                <div className="flex flex-col sm:flex-row gap-4 items-center">
+                  <div className="flex-1 w-full space-y-2">
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      id="product-image-file"
+                      className="hidden"
+                      onChange={handleImageUpload}
+                      disabled={uploadingImage}
+                    />
+                    <label
+                      htmlFor="product-image-file"
+                      className="inline-flex items-center justify-center px-4 py-2.5 bg-emerald-50 border border-emerald-100 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold cursor-pointer transition select-none disabled:opacity-50"
+                    >
+                      {uploadingImage ? 'Uploading Images...' : '📁 Choose Files (Multiple Allowed)'}
+                    </label>
+                    <p className="text-xxs text-slate-400 font-medium">
+                      Upload PNG, JPG, or WEBP. Max size 2MB per image.
+                    </p>
+                  </div>
                 </div>
-                
-                <div className="flex-1 w-full space-y-2">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    id="product-image-file"
-                    className="hidden"
-                    onChange={handleImageUpload}
-                    disabled={uploadingImage}
-                  />
-                  <label
-                    htmlFor="product-image-file"
-                    className="inline-flex items-center justify-center px-4 py-2.5 bg-emerald-50 border border-emerald-100 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold cursor-pointer transition select-none disabled:opacity-50"
-                  >
-                    {uploadingImage ? 'Uploading Image...' : '📁 Choose File from Local Storage'}
-                  </label>
-                  <p className="text-xxs text-slate-400 font-medium">
-                    Upload PNG, JPG, or WEBP. Max size 5MB.
-                  </p>
-                  
-                  {image && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xxs font-mono text-slate-450 truncate max-w-[200px]">{image}</span>
-                      <button
-                        type="button"
-                        onClick={() => setImage('')}
-                        className="text-xxs text-rose-600 hover:text-rose-700 font-bold transition"
-                      >
-                        Remove
-                      </button>
+
+                {images.length > 0 && (
+                  <div className="border-t border-slate-100 pt-4 space-y-3">
+                    <div className="text-xxs font-bold text-slate-450 uppercase tracking-wider flex justify-between">
+                      <span>Uploaded Images (Ordered by Priority & Upload time)</span>
+                      <span>{images.length} Image(s)</span>
                     </div>
-                  )}
-                </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {[...images]
+                        .sort((a, b) => a.priority - b.priority || a.uploadedAt - b.uploadedAt)
+                        .map((img, idx) => (
+                          <div key={img.id} className="flex gap-3 items-center bg-white border border-slate-150 rounded-xl p-2.5 shadow-sm relative group">
+                            <div className="w-16 h-16 rounded-lg overflow-hidden border border-slate-100 shrink-0 bg-slate-50">
+                              <img src={img.url} alt="Product image" className="w-full h-full object-cover" />
+                            </div>
+                            <div className="flex-1 space-y-1.5 min-w-0">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-xxs font-bold text-slate-700 truncate">
+                                  Image #{idx + 1}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveImage(img.id)}
+                                  className="text-xxs text-rose-650 hover:text-rose-700 font-bold transition"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <label className="text-[10px] font-bold text-slate-450 whitespace-nowrap">Priority:</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={img.priority}
+                                  onChange={(e) => handlePriorityChange(img.id, e.target.value)}
+                                  className="w-16 rounded-md border border-slate-200 px-2 py-0.5 text-xs text-slate-950 font-bold outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

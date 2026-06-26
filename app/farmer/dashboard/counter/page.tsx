@@ -9,6 +9,7 @@ import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import { PRODUCT_CATEGORIES } from '@/config/constants'
+import { printInvoice } from '@/lib/utils/invoice'
 
 interface Product {
   id: string
@@ -20,6 +21,7 @@ interface Product {
   farmerId: string
   unitSizes?: string | null
   image?: string | null
+  upcomingStock?: string | null
 }
 
 interface CartItem {
@@ -41,17 +43,17 @@ export default function LiveCounterPage() {
   // Mandatory Customer details
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
-  const [customerAddress, setCustomerAddress] = useState('')
   
   // Mandatory Stall details
   const [stallPlace, setStallPlace] = useState('')
   const [stallAreas, setStallAreas] = useState<any[]>([])
   const [checkoutLoading, setCheckoutLoading] = useState(false)
 
-  // Track selected unit sizes for each product (productId -> selectedUnitSizeName)
+  // Track selected unit sizes
   const [selectedUnitSizes, setSelectedUnitSizes] = useState<Record<string, string>>({})
 
   const [categories, setCategories] = useState<string[]>(Array.from(PRODUCT_CATEGORIES))
+  const [categoriesFullList, setCategoriesFullList] = useState<any[]>([])
 
   const fetchInventory = async () => {
     try {
@@ -73,6 +75,7 @@ export default function LiveCounterPage() {
       const res = await fetch('/api/categories')
       if (res.ok) {
         const data = await res.json()
+        setCategoriesFullList(data)
         setCategories(data.map((c: any) => c.name))
       }
     } catch (err) {
@@ -127,7 +130,7 @@ export default function LiveCounterPage() {
     }
   }
 
-  const addToCart = (product: Product) => {
+  const addToCart = (product: Product, qty: number = 1) => {
     const sizes = getProductSizeDetails(product)
     let unitSizeName: string | null = null
     let priceUsed = product.price
@@ -148,8 +151,8 @@ export default function LiveCounterPage() {
     )
     const currentQtyInCart = existing ? existing.quantity : 0
 
-    if (availableQty <= currentQtyInCart) {
-      alert(`Cannot add more. Only ${availableQty} unit(s) left in stock.`)
+    if (availableQty < currentQtyInCart + qty) {
+      alert(`Cannot add ${qty} units. Only ${availableQty - currentQtyInCart} units can be added (Total available: ${availableQty}).`)
       return
     }
 
@@ -157,12 +160,12 @@ export default function LiveCounterPage() {
       setCart(
         cart.map((item) =>
           item.product.id === product.id && item.unitSize === unitSizeName
-            ? { ...item, quantity: item.quantity + 1 }
+            ? { ...item, quantity: item.quantity + qty }
             : item
         )
       )
     } else {
-      setCart([...cart, { product, quantity: 1, unitSize: unitSizeName, price: priceUsed }])
+      setCart([...cart, { product, quantity: qty, unitSize: unitSizeName, price: priceUsed }])
     }
   }
 
@@ -195,15 +198,40 @@ export default function LiveCounterPage() {
     )
   }
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  const cgst = subtotal * 0.04
-  const sgst = subtotal * 0.04
-  const grandTotal = subtotal + cgst + sgst
+  const calculateLiveCounterTotals = () => {
+    let subVal = 0
+    let cgstVal = 0
+    let sgstVal = 0
+    
+    cart.forEach(item => {
+      const price = item.price
+      const qty = item.quantity
+      const categoryName = item.product.category
+      
+      const cat = categoriesFullList.find(c => c.name.toLowerCase() === categoryName.toLowerCase())
+      const cgstRate = cat ? cat.cgst : 0
+      const sgstRate = cat ? cat.sgst : 0
+      
+      const itemSubtotal = price * qty
+      subVal += itemSubtotal
+      cgstVal += itemSubtotal * (cgstRate / 100)
+      sgstVal += itemSubtotal * (sgstRate / 100)
+    })
+    
+    return {
+      subtotal: subVal,
+      cgst: cgstVal,
+      sgst: sgstVal,
+      grandTotal: subVal + cgstVal + sgstVal
+    }
+  }
+
+  const { subtotal, cgst, sgst, grandTotal } = calculateLiveCounterTotals()
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault()
     if (cart.length === 0) {
-      alert('Your stall billing cart is empty.')
+      alert('Your billing cart is empty.')
       return
     }
     if (!customerName.trim()) {
@@ -214,12 +242,8 @@ export default function LiveCounterPage() {
       alert('Customer mobile number is mandatory.')
       return
     }
-    if (!customerAddress.trim()) {
-      alert('Customer address is mandatory.')
-      return
-    }
     if (!stallPlace.trim()) {
-      alert('Stall location is mandatory.')
+      alert('Apartment selection is mandatory.')
       return
     }
 
@@ -231,7 +255,6 @@ export default function LiveCounterPage() {
         body: JSON.stringify({
           customerName,
           customerPhone,
-          customerAddress,
           stallPlace,
           cart: cart.map(item => ({
             product: { id: item.product.id },
@@ -246,136 +269,26 @@ export default function LiveCounterPage() {
         throw new Error(orderData.error || 'Failed to checkout transaction.')
       }
 
-      // Generate invoice printable popup
-      const transactionId = orderData.id
-      const dateStr = new Date(orderData.createdAt).toLocaleString('en-IN')
-
-      const itemsRowsHtml = orderData.items
-        .map(
-          (item: any, idx: number) => `
-        <tr style="border-bottom: 1px solid #f1f5f9;">
-          <td style="padding: 12px 16px; font-size: 13px;">${idx + 1}</td>
-          <td style="padding: 12px 16px; font-size: 13px; font-weight: 700; color: #0f172a;">
-            ${item.product.name} ${item.unitSize ? `(${item.unitSize})` : ''}
-          </td>
-          <td style="padding: 12px 16px; font-size: 13px; text-align: center;">${item.quantity}</td>
-          <td style="padding: 12px 16px; font-size: 13px; text-align: right;">₹${item.price.toFixed(2)}</td>
-          <td style="padding: 12px 16px; font-size: 13px; text-align: right; font-weight: 800;">₹${(item.price * item.quantity).toFixed(2)}</td>
-        </tr>
-      `
-        )
-        .join('')
-
-      const invoiceHtml = `
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-          <meta charset="UTF-8">
-          <title>Stall_Memo_${transactionId}</title>
-          <style>
-            @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
-            body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 30px 15px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .container { max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; padding: 32px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.02); }
-            .header { text-align: center; border-bottom: 2px dashed #e2e8f0; padding-bottom: 20px; margin-bottom: 20px; }
-            .brand { color: #065f46; font-size: 24px; font-weight: 900; margin: 0 0 4px 0; }
-            .subtitle { font-size: 12px; color: #64748b; margin: 0; font-weight: 600; }
-            .meta { margin-top: 16px; font-size: 13px; color: #475569; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: left; }
-            .meta span { font-weight: 700; color: #0f172a; }
-            .section-title { font-size: 10px; font-weight: 800; text-transform: uppercase; tracking-spacing: 0.1em; color: #94a3b8; margin: 24px 0 10px 0; display: block; text-align: left; }
-            table { width: 100%; border-collapse: collapse; text-align: left; margin-bottom: 20px; }
-            th { background: #f8fafc; padding: 10px 16px; font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
-            .summary { margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 12px; width: 280px; margin-left: auto; }
-            .summary-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; font-weight: 600; color: #475569; }
-            .summary-row.total { border-top: 2px solid #0f172a; padding-top: 12px; margin-top: 6px; font-size: 16px; font-weight: 900; color: #0f172a; }
-            .footer { border-top: 2px dashed #e2e8f0; padding-top: 20px; margin-top: 24px; text-align: center; font-size: 12px; color: #64748b; }
-            .print-btn { display: block; width: 100%; max-width: 180px; margin: 0 auto 20px auto; background: #059669; color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 700; cursor: pointer; text-align: center; }
-            @media print { body { background: #ffffff; padding: 0; } .container { border: none; box-shadow: none; padding: 0; } .print-btn { display: none; } }
-          </style>
-        </head>
-        <body>
-          <button class="print-btn" onclick="window.print()">🖨️ Print Memo</button>
-          <div class="container">
-            <div class="header">
-              <h1 class="brand">🌱 Sasya Khetr</h1>
-              <p class="subtitle">PHYSICAL STALL CASH RECEIPT</p>
-              <div class="meta">
-                <div>Stall Bill: <span>#${transactionId}</span></div>
-                <div>Date: <span>${dateStr}</span></div>
-                <div>Location: <span>${stallPlace}</span></div>
-                <div>Customer: <span>${customerName}</span></div>
-                <div>Phone: <span>${customerPhone}</span></div>
-                <div>Address: <span>${customerAddress}</span></div>
-              </div>
-            </div>
- 
-            <span class="section-title">Produce Purchased</span>
-            <table>
-              <thead>
-                <tr>
-                  <th style="width: 40px;">#</th>
-                  <th>Item</th>
-                  <th style="text-align: center; width: 60px;">Qty</th>
-                  <th style="text-align: right; width: 100px;">Rate</th>
-                  <th style="text-align: right; width: 100px;">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${itemsRowsHtml}
-              </tbody>
-            </table>
- 
-            <div class="summary">
-              <div class="summary-row">
-                <span>Stall Subtotal</span>
-                <span>₹${subtotal.toFixed(2)}</span>
-              </div>
-              <div class="summary-row">
-                <span>CGST (4%)</span>
-                <span>₹${cgst.toFixed(2)}</span>
-              </div>
-              <div class="summary-row">
-                <span>SGST (4%)</span>
-                <span>₹${sgst.toFixed(2)}</span>
-              </div>
-              <div class="summary-row total">
-                <span>Grand Total</span>
-                <span>₹${grandTotal.toFixed(2)}</span>
-              </div>
-            </div>
- 
-            <div class="footer">
-              <p style="font-weight: 700; color: #065f46; margin: 0 0 6px 0;">Paid in Full - Cash / UPI Transaction</p>
-              <p style="margin: 0;">Thank you for supporting organic local farms! 🌱</p>
-            </div>
-          </div>
-          <script>
-            window.onload = function() {
-              setTimeout(function() { window.print(); }, 250);
-            }
-          </script>
-        </body>
-        </html>
-      `
-
-      const printWindow = window.open('', '_blank')
-      if (printWindow) {
-        printWindow.document.write(invoiceHtml)
-        printWindow.document.close()
-      } else {
-        alert('Popup blocker prevented opening the stall memo. Please enable popups.')
-      }
+      // Print the invoice
+      printInvoice({
+        ...orderData,
+        user: {
+          name: customerName,
+          email: 'N/A',
+          phone: customerPhone
+        }
+      }, categoriesFullList)
 
       setCart([])
       setCustomerName('')
       setCustomerPhone('')
-      setCustomerAddress('')
       if (stallAreas.length > 0) {
         setStallPlace(stallAreas[0].name)
       } else {
         setStallPlace('')
       }
       await fetchInventory()
-      alert('Stall Transaction Completed and Saved Successfully!')
+      alert('Transaction Completed and Saved Successfully!')
     } catch (err: any) {
       console.error(err)
       alert(err.message || 'Failed to complete checkout transaction.')
@@ -456,6 +369,12 @@ export default function LiveCounterPage() {
                     }
                   }
 
+                  const chosenUnitSizeName = hasSizes ? (selectedUnitSizes[product.id] || sizes![0].size) : null
+                  const existingCartItem = cart.find(
+                    (item) => item.product.id === product.id && item.unitSize === chosenUnitSizeName
+                  )
+                  const cartQty = existingCartItem ? existingCartItem.quantity : 0
+
                   return (
                     <Card
                       key={product.id}
@@ -484,9 +403,22 @@ export default function LiveCounterPage() {
                           </div>
                         ) : null}
 
-                        {product.image ? (
-                          <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
-                        ) : (
+                        {(() => {
+                          if (!product.image) return null;
+                          let displayImg = product.image;
+                          if (product.image.startsWith('[')) {
+                            try {
+                              const parsed = JSON.parse(product.image);
+                              if (Array.isArray(parsed) && parsed.length > 0) {
+                                displayImg = parsed[0];
+                              }
+                            } catch {}
+                          }
+                          return displayImg ? (
+                            <img src={displayImg} alt={product.name} className="w-full h-full object-cover" />
+                          ) : null;
+                        })()}
+                        {!product.image && (
                           <>
                             {product.category === 'Fruits' && '🍎'}
                             {product.category === 'Vegetables' && '🥦'}
@@ -531,7 +463,7 @@ export default function LiveCounterPage() {
                           )}
 
                           {/* Unit size stocks list breakdown */}
-                          <div className="mb-2 text-[9px] font-semibold text-slate-450 uppercase tracking-wider">
+                          <div className="mb-2 text-[9px] font-semibold text-slate-455 uppercase tracking-wider">
                             {hasSizes ? (
                               <div className="space-y-1">
                                 <span className="block text-[8px] text-slate-400 font-extrabold uppercase">Unit Stocks:</span>
@@ -559,23 +491,43 @@ export default function LiveCounterPage() {
                           </div>
 
                           <div className="flex items-center gap-2">
-                            {!outOfStock ? (
-                              <>
-                                <div className="text-right shrink-0">
-                                  <span className="text-[9px] uppercase tracking-wider font-extrabold text-slate-400 block leading-none">Stock</span>
-                                  <span className="text-xxs font-bold text-slate-700 mt-1 block">{activeStock} U</span>
-                                </div>
+                            {outOfStock ? (
+                              <Badge variant="danger" className="text-[9px] px-1.5 py-0.5 font-bold">Sold Out</Badge>
+                            ) : cartQty > 0 ? (
+                              <div className="flex items-center gap-1.5 bg-emerald-50 rounded-lg p-0.5 border border-emerald-250">
                                 <button
                                   type="button"
-                                  onClick={() => addToCart(product)}
-                                  className="w-7 h-7 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center text-sm font-black transition active:scale-[0.93] shadow-sm shrink-0"
-                                  title="Add to Stall Cart"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    updateCartQuantity(product.id, chosenUnitSizeName, cartQty - 1)
+                                  }}
+                                  className="w-6 h-6 rounded bg-white border border-slate-200 text-emerald-700 font-extrabold flex items-center justify-center hover:bg-emerald-100 transition shadow-sm active:scale-95"
+                                >
+                                  -
+                                </button>
+                                <span className="w-5 text-center text-[11px] font-black text-emerald-950 select-none">
+                                  {cartQty}
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={cartQty >= activeStock}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    updateCartQuantity(product.id, chosenUnitSizeName, cartQty + 1)
+                                  }}
+                                  className="w-6 h-6 rounded bg-white border border-slate-200 text-emerald-700 font-extrabold flex items-center justify-center hover:bg-emerald-100 transition shadow-sm active:scale-95 disabled:opacity-50"
                                 >
                                   +
                                 </button>
-                              </>
+                              </div>
                             ) : (
-                              <Badge variant="danger" className="text-[9px] px-1.5 py-0.5 font-bold">Sold Out</Badge>
+                              <button
+                                type="button"
+                                onClick={() => addToCart(product, 1)}
+                                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center text-xs font-bold transition active:scale-[0.95] shadow-md shadow-emerald-600/10"
+                              >
+                                Add to Cart
+                              </button>
                             )}
                           </div>
                         </div>
@@ -636,8 +588,8 @@ export default function LiveCounterPage() {
             <form onSubmit={handleCheckout} className="space-y-4 pt-4 border-t border-slate-100">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xxs font-bold uppercase tracking-wider text-slate-450 mb-1">
-                    Customer Name <span className="text-rose-500 font-bold ml-0.5">^</span>
+                  <label className="block text-xxs font-bold uppercase tracking-wider text-slate-455 mb-1">
+                    Customer Name <span className="text-rose-500 font-bold ml-0.5">*</span>
                   </label>
                   <input
                     type="text"
@@ -649,8 +601,8 @@ export default function LiveCounterPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xxs font-bold uppercase tracking-wider text-slate-450 mb-1">
-                    Mobile Number <span className="text-rose-500 font-bold ml-0.5">^</span>
+                  <label className="block text-xxs font-bold uppercase tracking-wider text-slate-455 mb-1">
+                    Mobile Number <span className="text-rose-500 font-bold ml-0.5">*</span>
                   </label>
                   <input
                     type="text"
@@ -663,23 +615,10 @@ export default function LiveCounterPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3">
                 <div>
                   <label className="block text-xxs font-bold uppercase tracking-wider text-slate-455 mb-1">
-                    Customer Address <span className="text-rose-500 font-bold ml-0.5">^</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Sector 4, Block B"
-                    value={customerAddress}
-                    onChange={(e) => setCustomerAddress(e.target.value)}
-                    className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-950 outline-none focus:border-emerald-500 font-semibold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xxs font-bold uppercase tracking-wider text-slate-455 mb-1">
-                    Stall Location <span className="text-rose-500 font-bold ml-0.5">^</span>
+                    Apartment Location <span className="text-rose-500 font-bold ml-0.5">*</span>
                   </label>
                   <select
                     required
@@ -687,14 +626,14 @@ export default function LiveCounterPage() {
                     onChange={(e) => setStallPlace(e.target.value)}
                     className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-950 outline-none focus:border-emerald-500 font-semibold bg-white"
                   >
-                    <option value="" disabled>Select Stall Location</option>
+                    <option value="" disabled>Select Apartment</option>
                     {stallAreas.map((area: any) => (
                       <option key={area.id} value={area.name}>
                         {area.name}
                       </option>
                     ))}
                     {stallAreas.length === 0 && (
-                      <option value="" disabled>No Stall Areas Defined</option>
+                      <option value="" disabled>No Apartment Areas Defined</option>
                     )}
                   </select>
                 </div>

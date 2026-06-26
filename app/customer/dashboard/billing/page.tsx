@@ -80,22 +80,73 @@ export default function CustomerBillingPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            <Card hoverEffect={false} className="bg-white border border-slate-100 shadow-md p-6">
-              <h3 className="text-base font-extrabold text-slate-950 mb-4">Payment History</h3>
-              
-              <Table headers={['Transaction Ref', 'Order ID', 'Method', 'Date', 'Value Charged', 'Status']}>
-                {billingLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-50/50 transition">
-                    <td className="px-6 py-4 font-black uppercase text-xs text-slate-800">
-                      {log.transactionId}
-                    </td>
-                    <td className="px-6 py-4 text-xs font-mono uppercase text-slate-500">
-                      {log.orderId}
-                    </td>
-                    <td className="px-6 py-4 text-xs font-bold text-slate-700">
-                      💳 {log.paymentMethod}
-                    </td>
-                    <td className="px-6 py-4 text-xs font-semibold text-slate-500">
+            {/* Desktop Table View */}
+            <div className="hidden md:block">
+              <Card hoverEffect={false} className="bg-white border border-slate-100 shadow-md p-6">
+                <h3 className="text-base font-extrabold text-slate-950 mb-4">Payment History</h3>
+                
+                <Table headers={['Transaction Ref', 'Order ID', 'Method', 'Date', 'Value Charged', 'Status']}>
+                  {billingLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-slate-50/50 transition">
+                      <td className="px-6 py-4 font-black uppercase text-xs text-slate-800">
+                        {log.transactionId}
+                      </td>
+                      <td className="px-6 py-4 text-xs font-mono uppercase text-slate-500">
+                        {log.orderId}
+                      </td>
+                      <td className="px-6 py-4 text-xs font-bold text-slate-700">
+                        💳 {log.paymentMethod}
+                      </td>
+                      <td className="px-6 py-4 text-xs font-semibold text-slate-500">
+                        {new Date(log.createdAt).toLocaleString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-black text-slate-950">
+                        ₹{log.amount.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <Badge variant={log.status === 'completed' ? 'success' : 'danger'}>
+                          {log.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </Table>
+              </Card>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="block md:hidden space-y-4">
+              {billingLogs.map((log) => (
+                <div key={log.id} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Ref: {log.transactionId}</span>
+                    <Badge variant={log.status === 'completed' ? 'success' : 'danger'}>
+                      {log.status}
+                    </Badge>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Order ID</span>
+                    <span className="text-xs font-mono uppercase text-slate-700">{log.orderId}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Method</span>
+                      <span className="text-xs font-bold text-slate-700">💳 {log.paymentMethod}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Value Charged</span>
+                      <span className="text-sm font-black text-slate-950">₹{log.amount.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Date</span>
+                    <span className="text-xs font-semibold text-slate-500">
                       {new Date(log.createdAt).toLocaleString('en-US', {
                         year: 'numeric',
                         month: 'short',
@@ -103,19 +154,11 @@ export default function CustomerBillingPage() {
                         hour: '2-digit',
                         minute: '2-digit'
                       })}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-black text-slate-950">
-                      ₹{log.amount.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4">
-                      <Badge variant={log.status === 'completed' ? 'success' : 'danger'}>
-                        {log.status}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </Table>
-            </Card>
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </main>

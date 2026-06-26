@@ -67,8 +67,8 @@ export async function PUT(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session || (session.user as any).role !== 'farmer') {
-      return NextResponse.json({ error: 'Unauthorized. Farmers only.' }, { status: 401 })
+    if (!session || !session.user || !(session.user as any).id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { status } = await request.json()
@@ -76,6 +76,9 @@ export async function PUT(
     if (!status) {
       return NextResponse.json({ error: 'Status is required' }, { status: 400 })
     }
+
+    const userId = (session.user as any).id
+    const userRole = (session.user as any).role
 
     const order = await prisma.order.findUnique({
       where: { id: params.id },
@@ -92,12 +95,20 @@ export async function PUT(
       return NextResponse.json({ error: 'Order not found' }, { status: 404 })
     }
 
-    // Verify farmer owns at least one item in the order
-    const farmerId = (session.user as any).id
-    const isAssociated = order.items.some(item => item.product.farmerId === farmerId)
-
-    if (!isAssociated) {
-      return NextResponse.json({ error: 'Forbidden. You do not own items in this order.' }, { status: 403 })
+    if (userRole === 'customer') {
+      if (order.userId !== userId) {
+        return NextResponse.json({ error: 'Forbidden. You do not own this order.' }, { status: 403 })
+      }
+      if (status !== 'return-requested' && status !== 'replace-requested') {
+        return NextResponse.json({ error: 'Invalid status update request for customer' }, { status: 400 })
+      }
+    } else if (userRole === 'farmer') {
+      const isAssociated = order.items.some(item => item.product.farmerId === userId)
+      if (!isAssociated) {
+        return NextResponse.json({ error: 'Forbidden. You do not own items in this order.' }, { status: 403 })
+      }
+    } else {
+      return NextResponse.json({ error: 'Unauthorized role.' }, { status: 401 })
     }
 
     const updatedOrder = await prisma.order.update({
@@ -112,6 +123,17 @@ export async function PUT(
           message: `Your order ${order.id} has been shipped! Delivery is on its way.`
         }
       })
+    } else if (status === 'return-requested' || status === 'replace-requested') {
+      const typeLabel = status === 'return-requested' ? 'Return' : 'Replacement'
+      const farmerIds = Array.from(new Set(order.items.map(item => item.product.farmerId)))
+      for (const fId of farmerIds) {
+        await prisma.notification.create({
+          data: {
+            userId: fId,
+            message: `${typeLabel} requested for order #${order.id} by customer.`
+          }
+        })
+      }
     }
 
     return NextResponse.json(updatedOrder)

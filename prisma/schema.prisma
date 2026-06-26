@@ -50,6 +50,7 @@ model Product {
   farmerId      String
   farmer        User       @relation(fields: [farmerId], references: [id], onDelete: Cascade)
   unitSizes     String?
+  upcomingStock String?
   isDeleted     Boolean    @default(false)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt

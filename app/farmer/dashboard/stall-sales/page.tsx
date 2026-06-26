@@ -194,50 +194,110 @@ export default function StallSalesPage() {
               No sales logged for the selected time filter.
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-slate-100">
-              <Table headers={['Order Ref', 'Date & Time', 'Stall / Location', 'Customer Details', 'Items', 'Total Sale', 'Action']}>
+            <>
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-100">
+                <Table headers={['Order Ref', 'Date & Time', 'Stall / Location', 'Customer Details', 'Items', 'Total Sale', 'Action']}>
+                  {filteredOrders.map((order) => (
+                    <tr key={order.id} className="hover:bg-slate-50/50 transition text-xs font-semibold text-slate-700">
+                      <td className="px-6 py-4 font-black text-slate-900 uppercase">{order.id}</td>
+                      <td className="px-6 py-4 text-slate-500">
+                        {new Date(order.createdAt).toLocaleString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </td>
+                      <td className="px-6 py-4 text-slate-800">
+                        {order.shippingAddress || <span className="text-slate-400 italic">Live Counter</span>}
+                      </td>
+                      <td className="px-6 py-4 space-y-1">
+                        <div className="font-bold text-slate-900">{order.user?.name}</div>
+                        <div className="text-xxs text-slate-450">{order.user?.phone || 'No Phone'}</div>
+                      </td>
+                      <td className="px-6 py-4 max-w-xs">
+                        <div className="space-y-0.5">
+                          {order.items.map((item) => (
+                            <div key={item.id} className="truncate">
+                              • {item.product.name} <span className="text-slate-400">(x{item.quantity})</span>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 font-black text-slate-900">₹{order.totalAmount.toFixed(2)}</td>
+                      <td className="px-6 py-4">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => printInvoice(order)}
+                          className="py-1 text-xxs font-bold"
+                        >
+                          🖨️ Invoice
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </Table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="block md:hidden space-y-4">
                 {filteredOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-slate-50/50 transition text-xs font-semibold text-slate-700">
-                    <td className="px-6 py-4 font-black text-slate-900 uppercase">{order.id}</td>
-                    <td className="px-6 py-4 text-slate-500">
-                      {new Date(order.createdAt).toLocaleString(undefined, {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </td>
-                    <td className="px-6 py-4 text-slate-800">
-                      {order.shippingAddress || <span className="text-slate-400 italic">Live Counter</span>}
-                    </td>
-                    <td className="px-6 py-4 space-y-1">
-                      <div className="font-bold text-slate-900">{order.user?.name}</div>
-                      <div className="text-xxs text-slate-450">{order.user?.phone || 'No Phone'}</div>
-                    </td>
-                    <td className="px-6 py-4 max-w-xs">
-                      <div className="space-y-0.5">
+                  <div key={order.id} className="bg-slate-50 border border-slate-100 rounded-2xl p-4 shadow-sm space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="font-extrabold text-slate-900 text-xs uppercase">Ref: {order.id}</span>
+                      <span className="text-[11px] font-semibold text-slate-500">
+                        {new Date(order.createdAt).toLocaleString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
+                      <div>
+                        <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Stall / Location</span>
+                        <span className="text-slate-800">{order.shippingAddress || 'Live Counter'}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Customer</span>
+                        <span className="text-slate-800 block truncate">{order.user?.name}</span>
+                        <span className="text-[9px] text-slate-450 block">{order.user?.phone || 'No Phone'}</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Items</span>
+                      <div className="space-y-0.5 max-h-24 overflow-y-auto bg-white border border-slate-150 rounded-lg p-2">
                         {order.items.map((item) => (
-                          <div key={item.id} className="truncate">
-                            • {item.product.name} <span className="text-slate-400">(x{item.quantity})</span>
+                          <div key={item.id} className="text-xs font-medium text-slate-700 truncate">
+                            • {item.product.name} <span className="text-slate-450 font-bold">(x{item.quantity})</span>
                           </div>
                         ))}
                       </div>
-                    </td>
-                    <td className="px-6 py-4 font-black text-slate-900">₹{order.totalAmount.toFixed(2)}</td>
-                    <td className="px-6 py-4">
+                    </div>
+
+                    <div className="flex justify-between items-center pt-2 border-t border-slate-200/60">
+                      <div>
+                        <span className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-400">Total Sale</span>
+                        <span className="text-sm font-black text-slate-900">₹{order.totalAmount.toFixed(2)}</span>
+                      </div>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => printInvoice(order)}
-                        className="py-1 text-xxs font-bold"
+                        className="py-1.5 px-3 text-xs font-bold bg-white shadow-sm"
                       >
                         🖨️ Invoice
                       </Button>
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 ))}
-              </Table>
-            </div>
+              </div>
+            </>
           )}
         </Card>
       </main>

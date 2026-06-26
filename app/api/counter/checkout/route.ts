@@ -26,17 +26,15 @@ export async function POST(request: NextRequest) {
     if (!customerPhone || !customerPhone.trim()) {
       return NextResponse.json({ error: 'Customer Mobile Number is mandatory' }, { status: 400 })
     }
-    if (!customerAddress || !customerAddress.trim()) {
-      return NextResponse.json({ error: 'Customer Address is mandatory' }, { status: 400 })
-    }
     if (!stallPlace || !stallPlace.trim()) {
-      return NextResponse.json({ error: 'Stall place of counter is mandatory' }, { status: 400 })
+      return NextResponse.json({ error: 'Apartment location is mandatory' }, { status: 400 })
     }
     if (!cart || cart.length === 0) {
       return NextResponse.json({ error: 'Cart is empty' }, { status: 400 })
     }
 
     const normalizedPhone = customerPhone.trim()
+    const finalAddress = customerAddress && customerAddress.trim() ? customerAddress.trim() : `Apartment: ${stallPlace.trim()}`
 
     // 1. Create or merge Customer record (User with role customer)
     const customer = await prisma.$transaction(async (tx) => {
@@ -50,7 +48,7 @@ export async function POST(request: NextRequest) {
           where: { id: userRecord.id },
           data: {
             name: customerName.trim(),
-            address: customerAddress.trim()
+            address: finalAddress
           }
         })
       } else {
@@ -59,7 +57,7 @@ export async function POST(request: NextRequest) {
           data: {
             name: customerName.trim(),
             phone: normalizedPhone,
-            address: customerAddress.trim(),
+            address: finalAddress,
             role: 'customer'
           }
         })
@@ -195,7 +193,7 @@ export async function POST(request: NextRequest) {
           totalAmount,
           status: 'completed',
           paymentStatus: 'completed',
-          shippingAddress: `${customerAddress.trim()} (Stall: ${stallPlace.trim()})`,
+          shippingAddress: `Apartment: ${stallPlace.trim()}`,
           orderType: 'live-counter',
           stallName: stallPlace.trim(),
           items: {

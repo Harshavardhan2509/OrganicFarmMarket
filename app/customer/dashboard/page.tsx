@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import ProtectedRoute from '@/components/common/ProtectedRoute'
 import Navbar from '@/components/common/Navbar'
@@ -22,6 +23,7 @@ interface Product {
     name: string
   }
   unitSizes?: string
+  upcomingStock?: string | null
 }
 
 export default function CustomerDashboard() {
@@ -33,11 +35,13 @@ export default function CustomerDashboard() {
   const [sort, setSort] = useState('')
   const [addingId, setAddingId] = useState<string | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [cartItems, setCartItems] = useState<any[]>([])
+
 
   // Custom Categories and Reviews states
   const [categories, setCategories] = useState<string[]>(Array.from(PRODUCT_CATEGORIES))
   const [activeReviewProduct, setActiveReviewProduct] = useState<any | null>(null)
-  const [userRating, setUserRating] = useState<number>(5)
+  const [userRating, setUserRating] = useState<number>(0)
   const [userComment, setUserComment] = useState<string>('')
   const [reviewSubmitting, setReviewSubmitting] = useState<boolean>(false)
 
@@ -76,6 +80,39 @@ export default function CustomerDashboard() {
     }
   }
 
+  const fetchCartItems = async () => {
+    if (status === 'authenticated') {
+      try {
+        const res = await fetch('/api/cart')
+        if (res.ok) {
+          const data = await res.json()
+          if (data && data.items) {
+            setCartItems(data.items)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch cart items:', err)
+      }
+    } else {
+      const stored = localStorage.getItem('guestCart')
+      if (stored) {
+        try {
+          setCartItems(JSON.parse(stored))
+        } catch {
+          setCartItems([])
+        }
+      } else {
+        setCartItems([])
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (status !== 'loading') {
+      fetchCartItems()
+    }
+  }, [status])
+
   useEffect(() => {
     fetchCategories()
   }, [])
@@ -91,6 +128,10 @@ export default function CustomerDashboard() {
   const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!activeReviewProduct) return
+    if (userRating === 0) {
+      alert('Please select a star rating between 1 and 5.')
+      return
+    }
     setReviewSubmitting(true)
 
     try {
@@ -107,7 +148,7 @@ export default function CustomerDashboard() {
       const data = await res.json()
       if (res.ok) {
         setUserComment('')
-        setUserRating(5)
+        setUserRating(0)
         await fetchProducts()
         const updatedProductRes = await fetch(`/api/products/${activeReviewProduct.id}`)
         if (updatedProductRes.ok) {
@@ -125,6 +166,92 @@ export default function CustomerDashboard() {
     }
   }
 
+  const updateCartQuantity = async (productId: string, unitSize: string | null, newQty: number) => {
+    const product = products.find(p => p.id === productId)
+    if (!product) return
+
+    setAddingId(productId)
+    setToastMessage(null)
+
+    if (status === 'unauthenticated') {
+      const guestCartJson = localStorage.getItem('guestCart') || '[]'
+      let guestCart = []
+      try {
+        guestCart = JSON.parse(guestCartJson)
+      } catch {}
+
+      const index = guestCart.findIndex((item: any) => item.productId === productId && item.unitSize === unitSize)
+      if (newQty <= 0) {
+        if (index !== -1) {
+          guestCart.splice(index, 1)
+        }
+        setToastMessage(`Removed ${product.name} from guest cart! 🛒`)
+      } else {
+        let maxStock = product.quantity
+        if (product.unitSizes) {
+          try {
+            const sizes = JSON.parse(product.unitSizes)
+            const sizeObj = sizes.find((s: any) => s.size === unitSize)
+            if (sizeObj) maxStock = sizeObj.quantity
+          } catch {}
+        }
+        if (newQty > maxStock) {
+          alert('Requested quantity exceeds available stock')
+          setAddingId(null)
+          return
+        }
+
+        if (index !== -1) {
+          guestCart[index].quantity = newQty
+        } else {
+          guestCart.push({ productId, quantity: newQty, unitSize })
+        }
+        setToastMessage(`Updated ${product.name} quantity in guest cart! 🛒`)
+      }
+      localStorage.setItem('guestCart', JSON.stringify(guestCart))
+      setCartItems(guestCart)
+      setTimeout(() => setToastMessage(null), 3000)
+      setAddingId(null)
+      return
+    }
+
+    try {
+      if (newQty <= 0) {
+        const res = await fetch('/api/cart', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productId, unitSize }),
+        })
+        if (res.ok) {
+          setToastMessage(`Removed ${product.name} from cart! 🛒`)
+          setTimeout(() => setToastMessage(null), 3000)
+          await fetchCartItems()
+        } else {
+          const data = await res.json()
+          alert(data.error || 'Failed to update cart')
+        }
+      } else {
+        const res = await fetch('/api/cart', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productId, quantity: newQty, unitSize, relative: false }),
+        })
+        if (res.ok) {
+          setToastMessage(`Updated ${product.name} quantity! 🛒`)
+          setTimeout(() => setToastMessage(null), 3000)
+          await fetchCartItems()
+        } else {
+          const data = await res.json()
+          alert(data.error || 'Failed to update cart')
+        }
+      }
+    } catch (err) {
+      console.error('Cart update error:', err)
+    } finally {
+      setAddingId(null)
+    }
+  }
+
   const handleAddToCart = async (productId: string) => {
     const product = products.find(p => p.id === productId)
     if (!product) return
@@ -137,52 +264,11 @@ export default function CustomerDashboard() {
     }
     const chosenSize = selectedUnitSizes[productId] || (sizesList.length > 0 ? sizesList[0].size : null)
 
-    setAddingId(productId)
-    setToastMessage(null)
-
-    if (status === 'unauthenticated') {
-      const guestCartJson = localStorage.getItem('guestCart') || '[]'
-      let guestCart = []
-      try {
-        guestCart = JSON.parse(guestCartJson)
-      } catch {}
-
-      const existing = guestCart.find((item: any) => item.productId === productId && item.unitSize === chosenSize)
-      if (existing) {
-        existing.quantity += 1
-      } else {
-        guestCart.push({ productId, quantity: 1, unitSize: chosenSize })
-      }
-      localStorage.setItem('guestCart', JSON.stringify(guestCart))
-      setToastMessage(`Added ${product.name} to guest cart! 🛒`)
-      setTimeout(() => setToastMessage(null), 3000)
-      setAddingId(null)
-      return
-    }
-
-    try {
-      const res = await fetch('/api/cart', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId, quantity: 1, unitSize: chosenSize }),
-      })
-
-      if (res.ok) {
-        setToastMessage(`Added ${product.name} to your shopping cart! 🛒`)
-        setTimeout(() => setToastMessage(null), 3000)
-      } else {
-        const data = await res.json()
-        alert(data.error || 'Failed to add item to cart')
-      }
-    } catch (err) {
-      console.error('Cart add error:', err)
-    } finally {
-      setAddingId(null)
-    }
+    await updateCartQuantity(productId, chosenSize, 1)
   }
 
   return (
-    <ProtectedRoute allowedRoles={['customer']}>
+    <ProtectedRoute allowedRoles={['customer']} allowGuest>
       <Navbar />
       
       {/* Toast Notification */}
@@ -234,8 +320,28 @@ export default function CustomerDashboard() {
           </div>
         </div>
 
-        {/* Category tags row */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-6 scrollbar-thin">
+        {/* Category selector for mobile (dropdown) */}
+        <div className="block md:hidden mb-6">
+          <label htmlFor="category-select" className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+            Select Category
+          </label>
+          <select
+            id="category-select"
+            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none bg-white transition focus:border-emerald-500"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          >
+            <option value="All">All Produce</option>
+            {categories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Category tags row for desktop */}
+        <div className="hidden md:flex items-center gap-2 overflow-x-auto pb-4 mb-6 scrollbar-thin">
           <button
             onClick={() => setCategory('All')}
             className={`px-4 py-2 text-sm font-bold rounded-full border transition-all ${
@@ -322,26 +428,50 @@ export default function CustomerDashboard() {
                   ) : null}
 
                   {/* Image Placeholder / Product Image */}
-                  <div className="w-full h-44 bg-emerald-50/50 rounded-2xl flex items-center justify-center text-5xl mb-4 select-none transition group-hover:scale-[1.02] overflow-hidden border border-slate-100">
-                    {prod.image ? (
-                      <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <>
-                        {prod.category === 'Fruits' && '🍎'}
-                        {prod.category === 'Vegetables' && '🥦'}
-                        {prod.category === 'Grains' && '🌾'}
-                        {prod.category === 'Dairy' && '🥛'}
-                        {prod.category === 'Honey & Jams' && '🍯'}
-                        {prod.category === 'Herbs & Spices' && '🌿'}
-                        {!['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Honey & Jams', 'Herbs & Spices'].includes(prod.category) && '🌱'}
-                      </>
-                    )}
-                  </div>
+                  <Link href={`/customer/dashboard/products/${prod.id}`} className="block overflow-hidden rounded-2xl">
+                    <div className="w-full h-44 bg-emerald-50/50 rounded-2xl flex items-center justify-center text-5xl mb-4 select-none transition group-hover:scale-[1.02] overflow-hidden border border-slate-100">
+                      {(() => {
+                        if (!prod.image) return null;
+                        let displayImg = prod.image;
+                        if (prod.image.startsWith('[')) {
+                          try {
+                            const parsed = JSON.parse(prod.image);
+                            if (Array.isArray(parsed) && parsed.length > 0) {
+                              displayImg = parsed[0];
+                            }
+                          } catch {}
+                        }
+                        return displayImg ? (
+                          <img src={displayImg} alt={prod.name} className="w-full h-full object-cover" />
+                        ) : null;
+                      })()}
+                      {!prod.image && (
+                        <>
+                          {prod.category === 'Fruits' && '🍎'}
+                          {prod.category === 'Vegetables' && '🥦'}
+                          {prod.category === 'Grains' && '🌾'}
+                          {prod.category === 'Dairy' && '🥛'}
+                          {prod.category === 'Honey & Jams' && '🍯'}
+                          {prod.category === 'Herbs & Spices' && '🌿'}
+                          {!['Fruits', 'Vegetables', 'Grains', 'Dairy', 'Honey & Jams', 'Herbs & Spices'].includes(prod.category) && '🌱'}
+                        </>
+                      )}
+                    </div>
+                  </Link>
 
                   <div className="flex-1 flex flex-col">
-                    <h3 className="text-base font-extrabold text-slate-900 tracking-tight leading-snug line-clamp-1 mb-1 mt-1">
-                      {prod.name}
-                    </h3>
+                    <Link href={`/customer/dashboard/products/${prod.id}`}>
+                      <h3 className="text-base font-extrabold text-slate-900 tracking-tight leading-snug line-clamp-1 mb-1 mt-1 hover:text-emerald-700 transition">
+                        {prod.name}
+                      </h3>
+                    </Link>
+
+                    {/* Upcoming Stock Banner */}
+                    {prod.upcomingStock && (
+                      <div className="mt-1 mb-2 text-[10px] font-extrabold text-amber-800 bg-amber-50 border border-amber-100/50 rounded-lg px-2 py-0.5 select-none animate-pulse w-fit">
+                        📅 Upcoming: {prod.upcomingStock}
+                      </div>
+                    )}
 
                     {/* Reviews Star Rating Badge */}
                     <div className="flex items-center gap-1 mb-2">
@@ -356,7 +486,7 @@ export default function CustomerDashboard() {
                             type="button"
                             onClick={() => {
                               setActiveReviewProduct(prod)
-                              setUserRating(5)
+                              setUserRating(0)
                               setUserComment('')
                             }}
                             className="flex items-center gap-1.5 text-xs font-bold text-amber-500 hover:text-amber-600 transition bg-amber-50/50 hover:bg-amber-50 px-2 py-1 rounded-lg border border-amber-100/55"
@@ -423,15 +553,51 @@ export default function CustomerDashboard() {
                         <span className="text-lg font-black text-slate-900">₹{displayedPrice.toFixed(2)}</span>
                       </div>
 
-                      <Button
-                        variant={isSoldOut ? 'secondary' : 'primary'}
-                        size="sm"
-                        disabled={isSoldOut}
-                        loading={addingId === prod.id}
-                        onClick={() => handleAddToCart(prod.id)}
-                      >
-                        {isSoldOut ? 'Sold Out' : 'Add to Cart'}
-                      </Button>
+                      {isSoldOut ? (
+                        <Button variant="secondary" size="sm" disabled>
+                          Sold Out
+                        </Button>
+                      ) : (() => {
+                        const cartItem = cartItems.find((item: any) => item.productId === prod.id && item.unitSize === (chosenSizeName || null))
+                        const currentQty = cartItem ? cartItem.quantity : 0
+
+                        if (currentQty > 0) {
+                          return (
+                            <div className="flex items-center justify-between bg-emerald-50 rounded-lg p-1 border border-emerald-200">
+                              <button
+                                type="button"
+                                disabled={addingId === prod.id}
+                                onClick={() => updateCartQuantity(prod.id, chosenSizeName || null, currentQty - 1)}
+                                className="w-8 h-8 flex items-center justify-center bg-white hover:bg-emerald-100 text-emerald-700 font-extrabold rounded-md shadow-sm border border-emerald-100 active:scale-95 transition-all select-none disabled:opacity-50"
+                              >
+                                −
+                              </button>
+                              <span className="px-3 font-extrabold text-sm text-emerald-950 select-none min-w-[20px] text-center">
+                                {addingId === prod.id ? '...' : currentQty}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={addingId === prod.id || currentQty >= displayedStock}
+                                onClick={() => updateCartQuantity(prod.id, chosenSizeName || null, currentQty + 1)}
+                                className="w-8 h-8 flex items-center justify-center bg-white hover:bg-emerald-100 text-emerald-700 font-extrabold rounded-md shadow-sm border border-emerald-100 active:scale-95 transition-all select-none disabled:opacity-50"
+                              >
+                                +
+                              </button>
+                            </div>
+                          )
+                        }
+
+                        return (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            loading={addingId === prod.id}
+                            onClick={() => handleAddToCart(prod.id)}
+                          >
+                            Add to Cart
+                          </Button>
+                        )
+                      })()}
                     </div>
                   </div>
                 </Card>

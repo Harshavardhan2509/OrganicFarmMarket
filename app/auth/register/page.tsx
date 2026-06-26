@@ -54,6 +54,10 @@ function RegisterForm() {
       setError('Mobile number is mandatory')
       return
     }
+    if (!address.trim()) {
+      setError('Address is mandatory')
+      return
+    }
     if (!password.trim()) {
       setError('Password is mandatory')
       return
@@ -249,15 +253,16 @@ function RegisterForm() {
             </div>
 
             <div>
-              <label htmlFor="address" className="block text-xs font-bold text-slate-550 uppercase tracking-wider mb-2">
-                Delivery Address
+              <label htmlFor="address" className="block text-xs font-bold text-slate-555 uppercase tracking-wider mb-2">
+                Delivery Address <span className="text-rose-500 font-bold ml-1">*</span>
               </label>
               <input
                 id="address"
                 name="address"
                 type="text"
+                required
                 className="relative block w-full rounded-lg border border-slate-200 px-4 py-3 text-slate-950 placeholder-slate-400 focus:z-10 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 text-sm font-semibold transition"
-                placeholder={role === 'farmer' ? 'Farm Address (Optional)' : 'Delivery Address (Optional)'}
+                placeholder={role === 'farmer' ? 'Farm Address' : 'Delivery Address'}
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
               />

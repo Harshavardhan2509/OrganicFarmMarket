@@ -35,6 +35,12 @@ export default function Home() {
             {/* Interactive Call-To-Action Area */}
             <div className="flex gap-4 justify-center flex-wrap">
               <Link
+                href="/customer/dashboard"
+                className="px-8 py-4 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-2xl font-black transition shadow-md hover:shadow-lg active:scale-[0.98] text-base flex items-center gap-2"
+              >
+                🔍 Browse Products
+              </Link>
+              <Link
                 href="/auth/login"
                 className="px-8 py-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-2xl font-black transition shadow-lg shadow-emerald-700/25 hover:shadow-xl active:scale-[0.98] text-base flex items-center gap-2"
               >

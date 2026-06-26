@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { productId, quantity, unitSize } = await request.json()
+    const { productId, quantity, unitSize, relative } = await request.json()
 
     if (!productId || quantity === undefined) {
       return NextResponse.json({ error: 'Product ID and quantity are required' }, { status: 400 })
@@ -133,10 +133,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (maxStock < quantity) {
-      return NextResponse.json({ error: 'Requested quantity exceeds available stock' }, { status: 400 })
-    }
-
     // Check if item already exists in cart with the specified unit size
     const existingCartItem = await prisma.cartItem.findUnique({
       where: {
@@ -148,9 +144,15 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    const finalQuantity = existingCartItem && relative ? existingCartItem.quantity + quantity : quantity
+
+    if (maxStock < finalQuantity) {
+      return NextResponse.json({ error: 'Requested quantity exceeds available stock' }, { status: 400 })
+    }
+
     let cartItem
     if (existingCartItem) {
-      if (quantity <= 0) {
+      if (finalQuantity <= 0) {
         // Delete item if quantity set to 0 or less
         await prisma.cartItem.delete({
           where: { id: existingCartItem.id }
@@ -160,11 +162,11 @@ export async function POST(request: NextRequest) {
         // Update quantity
         cartItem = await prisma.cartItem.update({
           where: { id: existingCartItem.id },
-          data: { quantity }
+          data: { quantity: finalQuantity }
         })
       }
     } else {
-      if (quantity <= 0) {
+      if (finalQuantity <= 0) {
         return NextResponse.json({ error: 'Quantity must be greater than 0' }, { status: 400 })
       }
       // Create new cart item
@@ -172,7 +174,7 @@ export async function POST(request: NextRequest) {
         data: {
           cartId: cart.id,
           productId,
-          quantity,
+          quantity: finalQuantity,
           userId: (session.user as any).id,
           unitSize: unitSize || null
         }
